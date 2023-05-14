@@ -1,0 +1,32 @@
+# https://gqlgen.com/getting-started/
+# https://graphql.org/learn/schema/
+
+type Program {
+    id: Int!
+    name: String
+    type: String!
+    tag: String
+    runTime: Float
+    runCount: Int
+    btfId: Int
+    maps: [Map!]!
+    error: String
+}
+
+type Map {
+    id: Int!
+    fd: Int
+    name: String
+    type: String
+    flags: Int
+    isPinned: Boolean
+    keySize: Int
+    valueSize: Int
+    maxEntries: Int
+    error: String
+}
+
+type Query {
+    programs: [Program!]!
+    maps: [Map!]!
+}

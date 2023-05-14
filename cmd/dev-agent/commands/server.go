@@ -8,6 +8,7 @@ import (
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/progs"
 	"github.com/ebpfdev/dev-agent/pkg/graph"
 	"github.com/ebpfdev/dev-agent/pkg/graph/generated"
+	"github.com/rs/cors"
 	"log"
 	"net/http"
 	"os"
@@ -35,11 +36,13 @@ func (sc *ServerCommands) ServerStart() error {
 		MapsRepository:  sc.MapsRepo,
 	}
 
+	mux := http.NewServeMux()
+
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: resolver}))
 
-	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", srv)
+	mux.Handle("/", playground.Handler("GraphQL playground", "/query"))
+	mux.Handle("/query", srv)
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
-	return http.ListenAndServe(":"+port, nil)
+	return http.ListenAndServe(":"+port, cors.Default().Handler(mux))
 }

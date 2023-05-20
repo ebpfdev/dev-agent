@@ -36,6 +36,7 @@ type Config struct {
 }
 
 type ResolverRoot interface {
+	Map() MapResolver
 	Program() ProgramResolver
 	Query() QueryResolver
 }
@@ -45,41 +46,62 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Map struct {
-		Error      func(childComplexity int) int
-		Fd         func(childComplexity int) int
-		Flags      func(childComplexity int) int
-		ID         func(childComplexity int) int
-		IsPinned   func(childComplexity int) int
-		KeySize    func(childComplexity int) int
-		MaxEntries func(childComplexity int) int
-		Name       func(childComplexity int) int
-		Type       func(childComplexity int) int
-		ValueSize  func(childComplexity int) int
+		Entries           func(childComplexity int, offset *int, limit *int, keyFormat *model.MapEntryFormat, valueFormat *model.MapEntryFormat) int
+		EntriesCount      func(childComplexity int) int
+		Error             func(childComplexity int) int
+		Flags             func(childComplexity int) int
+		ID                func(childComplexity int) int
+		IsLookupSupported func(childComplexity int) int
+		IsPerCPU          func(childComplexity int) int
+		IsPinned          func(childComplexity int) int
+		KeySize           func(childComplexity int) int
+		MaxEntries        func(childComplexity int) int
+		Name              func(childComplexity int) int
+		Programs          func(childComplexity int) int
+		Type              func(childComplexity int) int
+		ValueSize         func(childComplexity int) int
+	}
+
+	MapEntry struct {
+		CPUValues func(childComplexity int) int
+		Key       func(childComplexity int) int
+		Value     func(childComplexity int) int
 	}
 
 	Program struct {
-		BtfID    func(childComplexity int) int
-		Error    func(childComplexity int) int
-		ID       func(childComplexity int) int
-		Maps     func(childComplexity int) int
-		Name     func(childComplexity int) int
-		RunCount func(childComplexity int) int
-		RunTime  func(childComplexity int) int
-		Tag      func(childComplexity int) int
-		Type     func(childComplexity int) int
+		BtfID       func(childComplexity int) int
+		Error       func(childComplexity int) int
+		ID          func(childComplexity int) int
+		IsPinned    func(childComplexity int) int
+		Maps        func(childComplexity int) int
+		Name        func(childComplexity int) int
+		RunCount    func(childComplexity int) int
+		RunTime     func(childComplexity int) int
+		Tag         func(childComplexity int) int
+		Type        func(childComplexity int) int
+		VerifierLog func(childComplexity int) int
 	}
 
 	Query struct {
+		Map      func(childComplexity int, id int) int
 		Maps     func(childComplexity int) int
+		Program  func(childComplexity int, id int) int
 		Programs func(childComplexity int) int
 	}
 }
 
+type MapResolver interface {
+	Entries(ctx context.Context, obj *model.Map, offset *int, limit *int, keyFormat *model.MapEntryFormat, valueFormat *model.MapEntryFormat) ([]*model.MapEntry, error)
+	EntriesCount(ctx context.Context, obj *model.Map) (int, error)
+	Programs(ctx context.Context, obj *model.Map) ([]*model.Program, error)
+}
 type ProgramResolver interface {
 	Maps(ctx context.Context, obj *model.Program) ([]*model.Map, error)
 }
 type QueryResolver interface {
+	Program(ctx context.Context, id int) (*model.Program, error)
 	Programs(ctx context.Context) ([]*model.Program, error)
+	Map(ctx context.Context, id int) (*model.Map, error)
 	Maps(ctx context.Context) ([]*model.Map, error)
 }
 
@@ -98,19 +120,31 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	_ = ec
 	switch typeName + "." + field {
 
+	case "Map.entries":
+		if e.complexity.Map.Entries == nil {
+			break
+		}
+
+		args, err := ec.field_Map_entries_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Map.Entries(childComplexity, args["offset"].(*int), args["limit"].(*int), args["keyFormat"].(*model.MapEntryFormat), args["valueFormat"].(*model.MapEntryFormat)), true
+
+	case "Map.entriesCount":
+		if e.complexity.Map.EntriesCount == nil {
+			break
+		}
+
+		return e.complexity.Map.EntriesCount(childComplexity), true
+
 	case "Map.error":
 		if e.complexity.Map.Error == nil {
 			break
 		}
 
 		return e.complexity.Map.Error(childComplexity), true
-
-	case "Map.fd":
-		if e.complexity.Map.Fd == nil {
-			break
-		}
-
-		return e.complexity.Map.Fd(childComplexity), true
 
 	case "Map.flags":
 		if e.complexity.Map.Flags == nil {
@@ -125,6 +159,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Map.ID(childComplexity), true
+
+	case "Map.isLookupSupported":
+		if e.complexity.Map.IsLookupSupported == nil {
+			break
+		}
+
+		return e.complexity.Map.IsLookupSupported(childComplexity), true
+
+	case "Map.isPerCPU":
+		if e.complexity.Map.IsPerCPU == nil {
+			break
+		}
+
+		return e.complexity.Map.IsPerCPU(childComplexity), true
 
 	case "Map.isPinned":
 		if e.complexity.Map.IsPinned == nil {
@@ -154,6 +202,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Map.Name(childComplexity), true
 
+	case "Map.programs":
+		if e.complexity.Map.Programs == nil {
+			break
+		}
+
+		return e.complexity.Map.Programs(childComplexity), true
+
 	case "Map.type":
 		if e.complexity.Map.Type == nil {
 			break
@@ -167,6 +222,27 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Map.ValueSize(childComplexity), true
+
+	case "MapEntry.cpuValues":
+		if e.complexity.MapEntry.CPUValues == nil {
+			break
+		}
+
+		return e.complexity.MapEntry.CPUValues(childComplexity), true
+
+	case "MapEntry.key":
+		if e.complexity.MapEntry.Key == nil {
+			break
+		}
+
+		return e.complexity.MapEntry.Key(childComplexity), true
+
+	case "MapEntry.value":
+		if e.complexity.MapEntry.Value == nil {
+			break
+		}
+
+		return e.complexity.MapEntry.Value(childComplexity), true
 
 	case "Program.btfId":
 		if e.complexity.Program.BtfID == nil {
@@ -188,6 +264,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Program.ID(childComplexity), true
+
+	case "Program.isPinned":
+		if e.complexity.Program.IsPinned == nil {
+			break
+		}
+
+		return e.complexity.Program.IsPinned(childComplexity), true
 
 	case "Program.maps":
 		if e.complexity.Program.Maps == nil {
@@ -231,12 +314,43 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Program.Type(childComplexity), true
 
+	case "Program.verifierLog":
+		if e.complexity.Program.VerifierLog == nil {
+			break
+		}
+
+		return e.complexity.Program.VerifierLog(childComplexity), true
+
+	case "Query.map":
+		if e.complexity.Query.Map == nil {
+			break
+		}
+
+		args, err := ec.field_Query_map_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Map(childComplexity, args["id"].(int)), true
+
 	case "Query.maps":
 		if e.complexity.Query.Maps == nil {
 			break
 		}
 
 		return e.complexity.Query.Maps(childComplexity), true
+
+	case "Query.program":
+		if e.complexity.Query.Program == nil {
+			break
+		}
+
+		args, err := ec.field_Query_program_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Program(childComplexity, args["id"].(int)), true
 
 	case "Query.programs":
 		if e.complexity.Query.Programs == nil {
@@ -302,31 +416,61 @@ var sources = []*ast.Source{
 
 type Program {
     id: Int!
+    error: String
+
     name: String
     type: String!
     tag: String
     runTime: Float
     runCount: Int
     btfId: Int
+    verifierLog: String
+    isPinned: Boolean
+
     maps: [Map!]!
-    error: String
 }
 
 type Map {
     id: Int!
-    fd: Int
+    error: String
+
     name: String
-    type: String
+    type: String!
     flags: Int
     isPinned: Boolean
     keySize: Int
     valueSize: Int
     maxEntries: Int
-    error: String
+
+    isPerCPU: Boolean!
+    isLookupSupported: Boolean!
+
+    entries(
+        offset: Int, limit: Int,
+        keyFormat: MapEntryFormat = HEX, valueFormat: MapEntryFormat = HEX
+    ): [MapEntry!]!
+
+    entriesCount: Int!
+
+    programs: [Program!]!
+}
+
+enum MapEntryFormat {
+    HEX
+    STRING
+    NUMBER
+}
+
+type MapEntry {
+    key: String!
+    value: String
+    cpuValues: [String!]!
 }
 
 type Query {
+    program(id: Int!): Program!
     programs: [Program!]!
+    map(id: Int!): Map!
     maps: [Map!]!
 }`, BuiltIn: false},
 }
@@ -335,6 +479,48 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Map_entries_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *int
+	if tmp, ok := rawArgs["offset"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+		arg0, err = ec.unmarshalOInt2ᚖint(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["offset"] = arg0
+	var arg1 *int
+	if tmp, ok := rawArgs["limit"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+		arg1, err = ec.unmarshalOInt2ᚖint(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["limit"] = arg1
+	var arg2 *model.MapEntryFormat
+	if tmp, ok := rawArgs["keyFormat"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("keyFormat"))
+		arg2, err = ec.unmarshalOMapEntryFormat2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntryFormat(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["keyFormat"] = arg2
+	var arg3 *model.MapEntryFormat
+	if tmp, ok := rawArgs["valueFormat"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("valueFormat"))
+		arg3, err = ec.unmarshalOMapEntryFormat2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntryFormat(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["valueFormat"] = arg3
+	return args, nil
+}
 
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
@@ -348,6 +534,36 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 		}
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_map_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_program_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -433,8 +649,8 @@ func (ec *executionContext) fieldContext_Map_id(ctx context.Context, field graph
 	return fc, nil
 }
 
-func (ec *executionContext) _Map_fd(ctx context.Context, field graphql.CollectedField, obj *model.Map) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Map_fd(ctx, field)
+func (ec *executionContext) _Map_error(ctx context.Context, field graphql.CollectedField, obj *model.Map) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Map_error(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -447,7 +663,7 @@ func (ec *executionContext) _Map_fd(ctx context.Context, field graphql.Collected
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Fd, nil
+		return obj.Error, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -456,19 +672,19 @@ func (ec *executionContext) _Map_fd(ctx context.Context, field graphql.Collected
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*int)
+	res := resTmp.(*string)
 	fc.Result = res
-	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Map_fd(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Map_error(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Map",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -536,11 +752,14 @@ func (ec *executionContext) _Map_type(ctx context.Context, field graphql.Collect
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
-	res := resTmp.(*string)
+	res := resTmp.(string)
 	fc.Result = res
-	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Map_type(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -761,8 +980,8 @@ func (ec *executionContext) fieldContext_Map_maxEntries(ctx context.Context, fie
 	return fc, nil
 }
 
-func (ec *executionContext) _Map_error(ctx context.Context, field graphql.CollectedField, obj *model.Map) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Map_error(ctx, field)
+func (ec *executionContext) _Map_isPerCPU(ctx context.Context, field graphql.CollectedField, obj *model.Map) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Map_isPerCPU(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -775,7 +994,314 @@ func (ec *executionContext) _Map_error(ctx context.Context, field graphql.Collec
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Error, nil
+		return obj.IsPerCPU, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Map_isPerCPU(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Map",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Map_isLookupSupported(ctx context.Context, field graphql.CollectedField, obj *model.Map) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Map_isLookupSupported(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IsLookupSupported, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Map_isLookupSupported(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Map",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Map_entries(ctx context.Context, field graphql.CollectedField, obj *model.Map) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Map_entries(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Map().Entries(rctx, obj, fc.Args["offset"].(*int), fc.Args["limit"].(*int), fc.Args["keyFormat"].(*model.MapEntryFormat), fc.Args["valueFormat"].(*model.MapEntryFormat))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.MapEntry)
+	fc.Result = res
+	return ec.marshalNMapEntry2ᚕᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntryᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Map_entries(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Map",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "key":
+				return ec.fieldContext_MapEntry_key(ctx, field)
+			case "value":
+				return ec.fieldContext_MapEntry_value(ctx, field)
+			case "cpuValues":
+				return ec.fieldContext_MapEntry_cpuValues(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MapEntry", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Map_entries_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Map_entriesCount(ctx context.Context, field graphql.CollectedField, obj *model.Map) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Map_entriesCount(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Map().EntriesCount(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Map_entriesCount(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Map",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Map_programs(ctx context.Context, field graphql.CollectedField, obj *model.Map) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Map_programs(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Map().Programs(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Program)
+	fc.Result = res
+	return ec.marshalNProgram2ᚕᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐProgramᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Map_programs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Map",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Program_id(ctx, field)
+			case "error":
+				return ec.fieldContext_Program_error(ctx, field)
+			case "name":
+				return ec.fieldContext_Program_name(ctx, field)
+			case "type":
+				return ec.fieldContext_Program_type(ctx, field)
+			case "tag":
+				return ec.fieldContext_Program_tag(ctx, field)
+			case "runTime":
+				return ec.fieldContext_Program_runTime(ctx, field)
+			case "runCount":
+				return ec.fieldContext_Program_runCount(ctx, field)
+			case "btfId":
+				return ec.fieldContext_Program_btfId(ctx, field)
+			case "verifierLog":
+				return ec.fieldContext_Program_verifierLog(ctx, field)
+			case "isPinned":
+				return ec.fieldContext_Program_isPinned(ctx, field)
+			case "maps":
+				return ec.fieldContext_Program_maps(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Program", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapEntry_key(ctx context.Context, field graphql.CollectedField, obj *model.MapEntry) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MapEntry_key(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Key, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_MapEntry_key(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapEntry_value(ctx context.Context, field graphql.CollectedField, obj *model.MapEntry) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MapEntry_value(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Value, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -789,9 +1315,53 @@ func (ec *executionContext) _Map_error(ctx context.Context, field graphql.Collec
 	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Map_error(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_MapEntry_value(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "Map",
+		Object:     "MapEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapEntry_cpuValues(ctx context.Context, field graphql.CollectedField, obj *model.MapEntry) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MapEntry_cpuValues(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CPUValues, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_MapEntry_cpuValues(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapEntry",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -841,6 +1411,47 @@ func (ec *executionContext) fieldContext_Program_id(ctx context.Context, field g
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Program_error(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Program_error(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Error, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Program_error(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Program",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -1095,6 +1706,88 @@ func (ec *executionContext) fieldContext_Program_btfId(ctx context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _Program_verifierLog(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Program_verifierLog(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.VerifierLog, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Program_verifierLog(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Program",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Program_isPinned(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Program_isPinned(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IsPinned, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*bool)
+	fc.Result = res
+	return ec.marshalOBoolean2ᚖbool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Program_isPinned(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Program",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Program_maps(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Program_maps(ctx, field)
 	if err != nil {
@@ -1123,7 +1816,7 @@ func (ec *executionContext) _Program_maps(ctx context.Context, field graphql.Col
 	}
 	res := resTmp.([]*model.Map)
 	fc.Result = res
-	return ec.marshalNMap2ᚕᚖgithubᚗcomᚋebpfdevᚋmonorepᚋdevelopmentᚑagentᚋpkgᚋgraphᚋmodelᚐMapᚄ(ctx, field.Selections, res)
+	return ec.marshalNMap2ᚕᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Program_maps(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1136,8 +1829,8 @@ func (ec *executionContext) fieldContext_Program_maps(ctx context.Context, field
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_Map_id(ctx, field)
-			case "fd":
-				return ec.fieldContext_Map_fd(ctx, field)
+			case "error":
+				return ec.fieldContext_Map_error(ctx, field)
 			case "name":
 				return ec.fieldContext_Map_name(ctx, field)
 			case "type":
@@ -1152,8 +1845,16 @@ func (ec *executionContext) fieldContext_Program_maps(ctx context.Context, field
 				return ec.fieldContext_Map_valueSize(ctx, field)
 			case "maxEntries":
 				return ec.fieldContext_Map_maxEntries(ctx, field)
-			case "error":
-				return ec.fieldContext_Map_error(ctx, field)
+			case "isPerCPU":
+				return ec.fieldContext_Map_isPerCPU(ctx, field)
+			case "isLookupSupported":
+				return ec.fieldContext_Map_isLookupSupported(ctx, field)
+			case "entries":
+				return ec.fieldContext_Map_entries(ctx, field)
+			case "entriesCount":
+				return ec.fieldContext_Map_entriesCount(ctx, field)
+			case "programs":
+				return ec.fieldContext_Map_programs(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Map", field.Name)
 		},
@@ -1161,8 +1862,8 @@ func (ec *executionContext) fieldContext_Program_maps(ctx context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _Program_error(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Program_error(ctx, field)
+func (ec *executionContext) _Query_program(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_program(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -1175,29 +1876,67 @@ func (ec *executionContext) _Program_error(ctx context.Context, field graphql.Co
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Error, nil
+		return ec.resolvers.Query().Program(rctx, fc.Args["id"].(int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
-	res := resTmp.(*string)
+	res := resTmp.(*model.Program)
 	fc.Result = res
-	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+	return ec.marshalNProgram2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐProgram(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Program_error(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_program(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "Program",
+		Object:     "Query",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Program_id(ctx, field)
+			case "error":
+				return ec.fieldContext_Program_error(ctx, field)
+			case "name":
+				return ec.fieldContext_Program_name(ctx, field)
+			case "type":
+				return ec.fieldContext_Program_type(ctx, field)
+			case "tag":
+				return ec.fieldContext_Program_tag(ctx, field)
+			case "runTime":
+				return ec.fieldContext_Program_runTime(ctx, field)
+			case "runCount":
+				return ec.fieldContext_Program_runCount(ctx, field)
+			case "btfId":
+				return ec.fieldContext_Program_btfId(ctx, field)
+			case "verifierLog":
+				return ec.fieldContext_Program_verifierLog(ctx, field)
+			case "isPinned":
+				return ec.fieldContext_Program_isPinned(ctx, field)
+			case "maps":
+				return ec.fieldContext_Program_maps(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Program", field.Name)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_program_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
 	}
 	return fc, nil
 }
@@ -1230,7 +1969,7 @@ func (ec *executionContext) _Query_programs(ctx context.Context, field graphql.C
 	}
 	res := resTmp.([]*model.Program)
 	fc.Result = res
-	return ec.marshalNProgram2ᚕᚖgithubᚗcomᚋebpfdevᚋmonorepᚋdevelopmentᚑagentᚋpkgᚋgraphᚋmodelᚐProgramᚄ(ctx, field.Selections, res)
+	return ec.marshalNProgram2ᚕᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐProgramᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_programs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1243,6 +1982,8 @@ func (ec *executionContext) fieldContext_Query_programs(ctx context.Context, fie
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_Program_id(ctx, field)
+			case "error":
+				return ec.fieldContext_Program_error(ctx, field)
 			case "name":
 				return ec.fieldContext_Program_name(ctx, field)
 			case "type":
@@ -1255,13 +1996,100 @@ func (ec *executionContext) fieldContext_Query_programs(ctx context.Context, fie
 				return ec.fieldContext_Program_runCount(ctx, field)
 			case "btfId":
 				return ec.fieldContext_Program_btfId(ctx, field)
+			case "verifierLog":
+				return ec.fieldContext_Program_verifierLog(ctx, field)
+			case "isPinned":
+				return ec.fieldContext_Program_isPinned(ctx, field)
 			case "maps":
 				return ec.fieldContext_Program_maps(ctx, field)
-			case "error":
-				return ec.fieldContext_Program_error(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Program", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_map(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_map(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().Map(rctx, fc.Args["id"].(int))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Map)
+	fc.Result = res
+	return ec.marshalNMap2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMap(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_map(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Map_id(ctx, field)
+			case "error":
+				return ec.fieldContext_Map_error(ctx, field)
+			case "name":
+				return ec.fieldContext_Map_name(ctx, field)
+			case "type":
+				return ec.fieldContext_Map_type(ctx, field)
+			case "flags":
+				return ec.fieldContext_Map_flags(ctx, field)
+			case "isPinned":
+				return ec.fieldContext_Map_isPinned(ctx, field)
+			case "keySize":
+				return ec.fieldContext_Map_keySize(ctx, field)
+			case "valueSize":
+				return ec.fieldContext_Map_valueSize(ctx, field)
+			case "maxEntries":
+				return ec.fieldContext_Map_maxEntries(ctx, field)
+			case "isPerCPU":
+				return ec.fieldContext_Map_isPerCPU(ctx, field)
+			case "isLookupSupported":
+				return ec.fieldContext_Map_isLookupSupported(ctx, field)
+			case "entries":
+				return ec.fieldContext_Map_entries(ctx, field)
+			case "entriesCount":
+				return ec.fieldContext_Map_entriesCount(ctx, field)
+			case "programs":
+				return ec.fieldContext_Map_programs(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Map", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_map_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
 	}
 	return fc, nil
 }
@@ -1294,7 +2122,7 @@ func (ec *executionContext) _Query_maps(ctx context.Context, field graphql.Colle
 	}
 	res := resTmp.([]*model.Map)
 	fc.Result = res
-	return ec.marshalNMap2ᚕᚖgithubᚗcomᚋebpfdevᚋmonorepᚋdevelopmentᚑagentᚋpkgᚋgraphᚋmodelᚐMapᚄ(ctx, field.Selections, res)
+	return ec.marshalNMap2ᚕᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_maps(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1307,8 +2135,8 @@ func (ec *executionContext) fieldContext_Query_maps(ctx context.Context, field g
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_Map_id(ctx, field)
-			case "fd":
-				return ec.fieldContext_Map_fd(ctx, field)
+			case "error":
+				return ec.fieldContext_Map_error(ctx, field)
 			case "name":
 				return ec.fieldContext_Map_name(ctx, field)
 			case "type":
@@ -1323,8 +2151,16 @@ func (ec *executionContext) fieldContext_Query_maps(ctx context.Context, field g
 				return ec.fieldContext_Map_valueSize(ctx, field)
 			case "maxEntries":
 				return ec.fieldContext_Map_maxEntries(ctx, field)
-			case "error":
-				return ec.fieldContext_Map_error(ctx, field)
+			case "isPerCPU":
+				return ec.fieldContext_Map_isPerCPU(ctx, field)
+			case "isLookupSupported":
+				return ec.fieldContext_Map_isLookupSupported(ctx, field)
+			case "entries":
+				return ec.fieldContext_Map_entries(ctx, field)
+			case "entriesCount":
+				return ec.fieldContext_Map_entriesCount(ctx, field)
+			case "programs":
+				return ec.fieldContext_Map_programs(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Map", field.Name)
 		},
@@ -3257,11 +4093,11 @@ func (ec *executionContext) _Map(ctx context.Context, sel ast.SelectionSet, obj 
 			out.Values[i] = ec._Map_id(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
-		case "fd":
+		case "error":
 
-			out.Values[i] = ec._Map_fd(ctx, field, obj)
+			out.Values[i] = ec._Map_error(ctx, field, obj)
 
 		case "name":
 
@@ -3271,6 +4107,9 @@ func (ec *executionContext) _Map(ctx context.Context, sel ast.SelectionSet, obj 
 
 			out.Values[i] = ec._Map_type(ctx, field, obj)
 
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
 		case "flags":
 
 			out.Values[i] = ec._Map_flags(ctx, field, obj)
@@ -3291,10 +4130,119 @@ func (ec *executionContext) _Map(ctx context.Context, sel ast.SelectionSet, obj 
 
 			out.Values[i] = ec._Map_maxEntries(ctx, field, obj)
 
-		case "error":
+		case "isPerCPU":
 
-			out.Values[i] = ec._Map_error(ctx, field, obj)
+			out.Values[i] = ec._Map_isPerCPU(ctx, field, obj)
 
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "isLookupSupported":
+
+			out.Values[i] = ec._Map_isLookupSupported(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "entries":
+			field := field
+
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Map_entries(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			}
+
+			out.Concurrently(i, func() graphql.Marshaler {
+				return innerFunc(ctx)
+
+			})
+		case "entriesCount":
+			field := field
+
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Map_entriesCount(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			}
+
+			out.Concurrently(i, func() graphql.Marshaler {
+				return innerFunc(ctx)
+
+			})
+		case "programs":
+			field := field
+
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Map_programs(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			}
+
+			out.Concurrently(i, func() graphql.Marshaler {
+				return innerFunc(ctx)
+
+			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var mapEntryImplementors = []string{"MapEntry"}
+
+func (ec *executionContext) _MapEntry(ctx context.Context, sel ast.SelectionSet, obj *model.MapEntry) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mapEntryImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MapEntry")
+		case "key":
+
+			out.Values[i] = ec._MapEntry_key(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "value":
+
+			out.Values[i] = ec._MapEntry_value(ctx, field, obj)
+
+		case "cpuValues":
+
+			out.Values[i] = ec._MapEntry_cpuValues(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3323,6 +4271,10 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&invalids, 1)
 			}
+		case "error":
+
+			out.Values[i] = ec._Program_error(ctx, field, obj)
+
 		case "name":
 
 			out.Values[i] = ec._Program_name(ctx, field, obj)
@@ -3350,6 +4302,14 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 
 			out.Values[i] = ec._Program_btfId(ctx, field, obj)
 
+		case "verifierLog":
+
+			out.Values[i] = ec._Program_verifierLog(ctx, field, obj)
+
+		case "isPinned":
+
+			out.Values[i] = ec._Program_isPinned(ctx, field, obj)
+
 		case "maps":
 			field := field
 
@@ -3370,10 +4330,6 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 				return innerFunc(ctx)
 
 			})
-		case "error":
-
-			out.Values[i] = ec._Program_error(ctx, field, obj)
-
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3404,6 +4360,29 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Query")
+		case "program":
+			field := field
+
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_program(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
+			}
+
+			out.Concurrently(i, func() graphql.Marshaler {
+				return rrm(innerCtx)
+			})
 		case "programs":
 			field := field
 
@@ -3414,6 +4393,29 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_programs(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
+			}
+
+			out.Concurrently(i, func() graphql.Marshaler {
+				return rrm(innerCtx)
+			})
+		case "map":
+			field := field
+
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_map(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
@@ -3821,7 +4823,11 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
-func (ec *executionContext) marshalNMap2ᚕᚖgithubᚗcomᚋebpfdevᚋmonorepᚋdevelopmentᚑagentᚋpkgᚋgraphᚋmodelᚐMapᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Map) graphql.Marshaler {
+func (ec *executionContext) marshalNMap2githubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMap(ctx context.Context, sel ast.SelectionSet, v model.Map) graphql.Marshaler {
+	return ec._Map(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMap2ᚕᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Map) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -3845,7 +4851,7 @@ func (ec *executionContext) marshalNMap2ᚕᚖgithubᚗcomᚋebpfdevᚋmonorep�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNMap2ᚖgithubᚗcomᚋebpfdevᚋmonorepᚋdevelopmentᚑagentᚋpkgᚋgraphᚋmodelᚐMap(ctx, sel, v[i])
+			ret[i] = ec.marshalNMap2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMap(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -3865,7 +4871,7 @@ func (ec *executionContext) marshalNMap2ᚕᚖgithubᚗcomᚋebpfdevᚋmonorep�
 	return ret
 }
 
-func (ec *executionContext) marshalNMap2ᚖgithubᚗcomᚋebpfdevᚋmonorepᚋdevelopmentᚑagentᚋpkgᚋgraphᚋmodelᚐMap(ctx context.Context, sel ast.SelectionSet, v *model.Map) graphql.Marshaler {
+func (ec *executionContext) marshalNMap2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMap(ctx context.Context, sel ast.SelectionSet, v *model.Map) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -3875,7 +4881,7 @@ func (ec *executionContext) marshalNMap2ᚖgithubᚗcomᚋebpfdevᚋmonorepᚋde
 	return ec._Map(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNProgram2ᚕᚖgithubᚗcomᚋebpfdevᚋmonorepᚋdevelopmentᚑagentᚋpkgᚋgraphᚋmodelᚐProgramᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Program) graphql.Marshaler {
+func (ec *executionContext) marshalNMapEntry2ᚕᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MapEntry) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -3899,7 +4905,7 @@ func (ec *executionContext) marshalNProgram2ᚕᚖgithubᚗcomᚋebpfdevᚋmonor
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNProgram2ᚖgithubᚗcomᚋebpfdevᚋmonorepᚋdevelopmentᚑagentᚋpkgᚋgraphᚋmodelᚐProgram(ctx, sel, v[i])
+			ret[i] = ec.marshalNMapEntry2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntry(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -3919,7 +4925,65 @@ func (ec *executionContext) marshalNProgram2ᚕᚖgithubᚗcomᚋebpfdevᚋmonor
 	return ret
 }
 
-func (ec *executionContext) marshalNProgram2ᚖgithubᚗcomᚋebpfdevᚋmonorepᚋdevelopmentᚑagentᚋpkgᚋgraphᚋmodelᚐProgram(ctx context.Context, sel ast.SelectionSet, v *model.Program) graphql.Marshaler {
+func (ec *executionContext) marshalNMapEntry2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntry(ctx context.Context, sel ast.SelectionSet, v *model.MapEntry) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MapEntry(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProgram2githubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐProgram(ctx context.Context, sel ast.SelectionSet, v model.Program) graphql.Marshaler {
+	return ec._Program(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProgram2ᚕᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐProgramᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Program) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNProgram2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐProgram(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProgram2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐProgram(ctx context.Context, sel ast.SelectionSet, v *model.Program) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -3942,6 +5006,38 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNString2ᚕstringᚄ(ctx context.Context, v interface{}) ([]string, error) {
+	var vSlice []interface{}
+	if v != nil {
+		vSlice = graphql.CoerceList(v)
+	}
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
@@ -4253,6 +5349,22 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	}
 	res := graphql.MarshalInt(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOMapEntryFormat2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntryFormat(ctx context.Context, v interface{}) (*model.MapEntryFormat, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.MapEntryFormat)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOMapEntryFormat2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntryFormat(ctx context.Context, sel ast.SelectionSet, v *model.MapEntryFormat) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v interface{}) (*string, error) {

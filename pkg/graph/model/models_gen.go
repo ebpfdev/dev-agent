@@ -2,27 +2,88 @@
 
 package model
 
+import (
+	"fmt"
+	"io"
+	"strconv"
+)
+
 type Map struct {
-	ID         int     `json:"id"`
-	Fd         *int    `json:"fd,omitempty"`
-	Name       *string `json:"name,omitempty"`
-	Type       *string `json:"type,omitempty"`
-	Flags      *int    `json:"flags,omitempty"`
-	IsPinned   *bool   `json:"isPinned,omitempty"`
-	KeySize    *int    `json:"keySize,omitempty"`
-	ValueSize  *int    `json:"valueSize,omitempty"`
-	MaxEntries *int    `json:"maxEntries,omitempty"`
-	Error      *string `json:"error,omitempty"`
+	ID                int         `json:"id"`
+	Error             *string     `json:"error,omitempty"`
+	Name              *string     `json:"name,omitempty"`
+	Type              string      `json:"type"`
+	Flags             *int        `json:"flags,omitempty"`
+	IsPinned          *bool       `json:"isPinned,omitempty"`
+	KeySize           *int        `json:"keySize,omitempty"`
+	ValueSize         *int        `json:"valueSize,omitempty"`
+	MaxEntries        *int        `json:"maxEntries,omitempty"`
+	IsPerCPU          bool        `json:"isPerCPU"`
+	IsLookupSupported bool        `json:"isLookupSupported"`
+	Entries           []*MapEntry `json:"entries"`
+	EntriesCount      int         `json:"entriesCount"`
+	Programs          []*Program  `json:"programs"`
+}
+
+type MapEntry struct {
+	Key       string   `json:"key"`
+	Value     *string  `json:"value,omitempty"`
+	CPUValues []string `json:"cpuValues"`
 }
 
 type Program struct {
-	ID       int      `json:"id"`
-	Name     *string  `json:"name,omitempty"`
-	Type     string   `json:"type"`
-	Tag      *string  `json:"tag,omitempty"`
-	RunTime  *float64 `json:"runTime,omitempty"`
-	RunCount *int     `json:"runCount,omitempty"`
-	BtfID    *int     `json:"btfId,omitempty"`
-	Maps     []*Map   `json:"maps"`
-	Error    *string  `json:"error,omitempty"`
+	ID          int      `json:"id"`
+	Error       *string  `json:"error,omitempty"`
+	Name        *string  `json:"name,omitempty"`
+	Type        string   `json:"type"`
+	Tag         *string  `json:"tag,omitempty"`
+	RunTime     *float64 `json:"runTime,omitempty"`
+	RunCount    *int     `json:"runCount,omitempty"`
+	BtfID       *int     `json:"btfId,omitempty"`
+	VerifierLog *string  `json:"verifierLog,omitempty"`
+	IsPinned    *bool    `json:"isPinned,omitempty"`
+	Maps        []*Map   `json:"maps"`
+}
+
+type MapEntryFormat string
+
+const (
+	MapEntryFormatHex    MapEntryFormat = "HEX"
+	MapEntryFormatString MapEntryFormat = "STRING"
+	MapEntryFormatNumber MapEntryFormat = "NUMBER"
+)
+
+var AllMapEntryFormat = []MapEntryFormat{
+	MapEntryFormatHex,
+	MapEntryFormatString,
+	MapEntryFormatNumber,
+}
+
+func (e MapEntryFormat) IsValid() bool {
+	switch e {
+	case MapEntryFormatHex, MapEntryFormatString, MapEntryFormatNumber:
+		return true
+	}
+	return false
+}
+
+func (e MapEntryFormat) String() string {
+	return string(e)
+}
+
+func (e *MapEntryFormat) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MapEntryFormat(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MapEntryFormat", str)
+	}
+	return nil
+}
+
+func (e MapEntryFormat) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }

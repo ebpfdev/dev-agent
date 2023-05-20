@@ -86,3 +86,11 @@ models:
     fields:
       maps:
         resolver: true
+  Map:
+    fields:
+      programs:
+        resolver: true
+      entries:
+        resolver: true
+      entriesCount:
+        resolver: true

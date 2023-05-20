@@ -34,7 +34,7 @@ func (pw *progWatcher) Run(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				pw.progs = pw.GetProgs()
+				pw.progs = pw.fetchProgs()
 			case <-ctx.Done():
 				pw.isRunning = false
 				return
@@ -44,9 +44,12 @@ func (pw *progWatcher) Run(ctx context.Context) {
 }
 
 type ProgInfo struct {
-	ID    ebpf.ProgramID
-	Info  *ebpf.ProgramInfo
-	Error error
+	ID          ebpf.ProgramID
+	Info        *ebpf.ProgramInfo
+	Error       error
+	VerifierLog string
+	Type        ebpf.ProgramType
+	IsPinned    bool
 }
 
 func (pw *progWatcher) GetProgs() []ProgInfo {
@@ -72,9 +75,12 @@ func (pw *progWatcher) fetchProgs() []ProgInfo {
 		}
 		info, err2 := prog.Info()
 		progs = append(progs, ProgInfo{
-			ID:    currID,
-			Info:  info,
-			Error: err2,
+			ID:          currID,
+			Type:        prog.Type(),
+			IsPinned:    prog.IsPinned(),
+			Info:        info,
+			VerifierLog: prog.VerifierLog,
+			Error:       err2,
 		})
 	}
 	return progs

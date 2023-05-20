@@ -7,12 +7,112 @@ package graph
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/cilium/ebpf"
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/maps"
 	"github.com/ebpfdev/dev-agent/pkg/graph/generated"
 	"github.com/ebpfdev/dev-agent/pkg/graph/model"
 )
+
+// Entries is the resolver for the entries field.
+func (r *mapResolver) Entries(ctx context.Context, obj *model.Map, offset *int, limit *int, keyFormat *model.MapEntryFormat, valueFormat *model.MapEntryFormat) ([]*model.MapEntry, error) {
+	emap, err := ebpf.NewMapFromID(ebpf.MapID(obj.ID))
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]*model.MapEntry, 0)
+
+	if !isLookupSupported(emap.Type()) {
+		return entries, nil
+	}
+
+	var key []byte
+	mapIterator := emap.Iterate()
+	if isPerCPU(emap.Type()) {
+		var bufSlice [][]byte
+		for mapIterator.Next(&key, &bufSlice) {
+			values := make([]string, len(bufSlice))
+			for i, value := range bufSlice {
+				values[i] = formatValue(*valueFormat, value[:])
+			}
+			entries = append(entries, &model.MapEntry{
+				Key:       formatValue(*keyFormat, key[:]),
+				CPUValues: values,
+				Value:     &values[0],
+			})
+		}
+	} else {
+		var buf []byte
+		for mapIterator.Next(&key, &buf) {
+			value := formatValue(*valueFormat, buf[:])
+			entries = append(entries, &model.MapEntry{
+				Key:   formatValue(*keyFormat, key[:]),
+				Value: &value,
+			})
+		}
+	}
+
+	sort.SliceStable(entries, func(i, j int) bool {
+		return entries[i].Key < entries[j].Key
+	})
+
+	offsetStart := 0
+	if offset != nil {
+		offsetStart = *offset
+	}
+	limitValue := 32
+	if limit != nil {
+		limitValue = *limit
+	}
+
+	offsetEnd := offsetStart + limitValue
+	if offsetEnd > len(entries) {
+		offsetEnd = len(entries)
+	}
+
+	result := entries[offsetStart:offsetEnd]
+
+	return result, mapIterator.Err()
+}
+
+// EntriesCount is the resolver for the entriesCount field.
+func (r *mapResolver) EntriesCount(ctx context.Context, obj *model.Map) (int, error) {
+	emap, err := ebpf.NewMapFromID(ebpf.MapID(obj.ID))
+	if err != nil {
+		return 0, err
+	}
+
+	if !isLookupSupported(emap.Type()) {
+		return 0, nil
+	}
+
+	count := 0
+
+	var key []byte
+	var value []byte
+
+	mapIterator := emap.Iterate()
+	for mapIterator.Next(&key, &value) {
+		count++
+	}
+	return count, mapIterator.Err()
+}
+
+// Programs is the resolver for the programs field.
+func (r *mapResolver) Programs(ctx context.Context, obj *model.Map) ([]*model.Program, error) {
+	result := make([]*model.Program, 0)
+	for _, prog := range r.ProgsRepository.GetProgs() {
+		mapIDs, _ := prog.Info.MapIDs()
+		for _, mapID := range mapIDs {
+			if mapID == ebpf.MapID(obj.ID) {
+				result = append(result, progInfoToModel(&prog))
+			}
+		}
+	}
+	return result, nil
+}
 
 // Maps is the resolver for the maps field.
 func (r *programResolver) Maps(ctx context.Context, obj *model.Program) ([]*model.Map, error) {
@@ -36,6 +136,17 @@ func (r *programResolver) Maps(ctx context.Context, obj *model.Program) ([]*mode
 	return mapsResult, nil
 }
 
+// Program is the resolver for the program field.
+func (r *queryResolver) Program(ctx context.Context, id int) (*model.Program, error) {
+	progs := r.ProgsRepository.GetProgs()
+	for _, prog := range progs {
+		if prog.ID == ebpf.ProgramID(id) {
+			return progInfoToModel(&prog), nil
+		}
+	}
+	return nil, fmt.Errorf("program with ID %d not found", id)
+}
+
 // Programs is the resolver for the programs field.
 func (r *queryResolver) Programs(ctx context.Context) ([]*model.Program, error) {
 	progs := r.ProgsRepository.GetProgs()
@@ -44,6 +155,17 @@ func (r *queryResolver) Programs(ctx context.Context) ([]*model.Program, error) 
 		result[i] = progInfoToModel(&prog)
 	}
 	return result, nil
+}
+
+// Map is the resolver for the map field.
+func (r *queryResolver) Map(ctx context.Context, id int) (*model.Map, error) {
+	emaps := r.MapsRepository.GetMaps()
+	for _, m := range emaps {
+		if m.ID == ebpf.MapID(id) {
+			return mapInfoToModel(m), nil
+		}
+	}
+	return nil, fmt.Errorf("map with ID %d not found", id)
 }
 
 // Maps is the resolver for the maps field.
@@ -56,11 +178,15 @@ func (r *queryResolver) Maps(ctx context.Context) ([]*model.Map, error) {
 	return result, nil
 }
 
+// Map returns generated.MapResolver implementation.
+func (r *Resolver) Map() generated.MapResolver { return &mapResolver{r} }
+
 // Program returns generated.ProgramResolver implementation.
 func (r *Resolver) Program() generated.ProgramResolver { return &programResolver{r} }
 
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
+type mapResolver struct{ *Resolver }
 type programResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }

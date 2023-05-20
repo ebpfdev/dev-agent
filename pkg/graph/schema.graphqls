@@ -3,30 +3,60 @@
 
 type Program {
     id: Int!
+    error: String
+
     name: String
     type: String!
     tag: String
     runTime: Float
     runCount: Int
     btfId: Int
+    verifierLog: String
+    isPinned: Boolean
+
     maps: [Map!]!
-    error: String
 }
 
 type Map {
     id: Int!
-    fd: Int
+    error: String
+
     name: String
-    type: String
+    type: String!
     flags: Int
     isPinned: Boolean
     keySize: Int
     valueSize: Int
     maxEntries: Int
-    error: String
+
+    isPerCPU: Boolean!
+    isLookupSupported: Boolean!
+
+    entries(
+        offset: Int, limit: Int,
+        keyFormat: MapEntryFormat = HEX, valueFormat: MapEntryFormat = HEX
+    ): [MapEntry!]!
+
+    entriesCount: Int!
+
+    programs: [Program!]!
+}
+
+enum MapEntryFormat {
+    HEX
+    STRING
+    NUMBER
+}
+
+type MapEntry {
+    key: String!
+    value: String
+    cpuValues: [String!]!
 }
 
 type Query {
+    program(id: Int!): Program!
     programs: [Program!]!
+    map(id: Int!): Map!
     maps: [Map!]!
 }

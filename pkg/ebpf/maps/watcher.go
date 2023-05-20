@@ -35,7 +35,7 @@ func (pw *mapsWatcher) Run(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				pw.maps = pw.GetMaps()
+				pw.maps = pw.fetchMaps()
 			case <-ctx.Done():
 				pw.isRunning = false
 				return
@@ -47,9 +47,8 @@ func (pw *mapsWatcher) Run(ctx context.Context) {
 type MapInfo struct {
 	ID         ebpf.MapID
 	Error      error
-	FD         int
 	Name       string
-	Type       string
+	Type       ebpf.MapType
 	Flags      uint32
 	IsPinned   bool
 	KeySize    uint32
@@ -96,15 +95,15 @@ func (pw *mapsWatcher) fetchMaps() []*MapInfo {
 		maps = append(maps, &MapInfo{
 			ID:         currID,
 			Error:      err2,
-			FD:         emap.FD(),
 			Name:       name,
-			Type:       emap.Type().String(),
+			Type:       emap.Type(),
 			Flags:      emap.Flags(),
 			IsPinned:   emap.IsPinned(),
 			KeySize:    emap.KeySize(),
 			ValueSize:  emap.ValueSize(),
 			MaxEntries: emap.MaxEntries(),
 		})
+		_ = emap.Close()
 	}
 	return maps
 }

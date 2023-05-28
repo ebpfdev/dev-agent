@@ -43,9 +43,16 @@ func App() *cli.App {
 						Usage: "path prefix for the web ui to access the server",
 						Value: "/",
 					},
+					&cli.BoolFlag{
+						Name:  "skip-welcome",
+						Usage: "skip welcome message",
+					},
 				},
 				Action: func(c *cli.Context) error {
-					return serverCommands.ServerStart(c.String("path-prefix"))
+					return serverCommands.ServerStart(&ServerStartOptions{
+						PathPrefix:  c.String("path-prefix"),
+						SkipWelcome: c.Bool("skip-welcome"),
+					})
 				},
 			},
 			{

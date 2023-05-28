@@ -19,9 +19,14 @@ type ServerCommands struct {
 	ProgsRepo progs.ProgWatcher
 }
 
+type ServerStartOptions struct {
+	PathPrefix  string
+	SkipWelcome bool
+}
+
 const defaultPort = "8080"
 
-func (sc *ServerCommands) ServerStart(pathPrefix string) error {
+func (sc *ServerCommands) ServerStart(options *ServerStartOptions) error {
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -40,9 +45,11 @@ func (sc *ServerCommands) ServerStart(pathPrefix string) error {
 
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: resolver}))
 
-	mux.Handle("/", playground.Handler("GraphQL playground", pathPrefix+"query"))
+	mux.Handle("/", playground.Handler("GraphQL playground", options.PathPrefix+"query"))
 	mux.Handle("/query", srv)
 
-	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
+	if !options.SkipWelcome {
+		log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
+	}
 	return http.ListenAndServe(":"+port, cors.Default().Handler(mux))
 }

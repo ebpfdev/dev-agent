@@ -2,24 +2,30 @@ package maps
 
 import (
 	"context"
+	"errors"
 	"github.com/cilium/ebpf"
+	"github.com/rs/zerolog"
+	"os"
 	"time"
 )
 
 type mapsWatcher struct {
+	log           zerolog.Logger
 	checkInterval time.Duration
 	maps          []*MapInfo
+	error         error
 	isRunning     bool
 }
 
 type MapsWatcher interface {
 	Run(ctx context.Context)
-	GetMaps() []*MapInfo
-	GetMap(id ebpf.MapID) *MapInfo
+	GetMaps() ([]*MapInfo, error)
+	GetMap(id ebpf.MapID) (*MapInfo, error)
 }
 
-func NewWatcher(checkInterval time.Duration) MapsWatcher {
+func NewWatcher(logger zerolog.Logger, checkInterval time.Duration) MapsWatcher {
 	return &mapsWatcher{
+		log:           logger,
 		checkInterval: checkInterval,
 	}
 }
@@ -35,7 +41,7 @@ func (pw *mapsWatcher) Run(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				pw.maps = pw.fetchMaps()
+				pw.maps, pw.error = pw.fetchMaps()
 			case <-ctx.Done():
 				pw.isRunning = false
 				return
@@ -56,31 +62,36 @@ type MapInfo struct {
 	MaxEntries uint32
 }
 
-func (pw *mapsWatcher) GetMaps() []*MapInfo {
+func (pw *mapsWatcher) GetMaps() ([]*MapInfo, error) {
 	if pw.maps == nil {
 		return pw.fetchMaps()
 	}
-	return pw.maps
+	return pw.maps, pw.error
 }
 
-func (pw *mapsWatcher) GetMap(id ebpf.MapID) *MapInfo {
-	maps := pw.GetMaps()
+func (pw *mapsWatcher) GetMap(id ebpf.MapID) (*MapInfo, error) {
+	maps, err := pw.GetMaps()
 	for _, m := range maps {
 		if m.ID == id {
-			return m
+			return m, err
 		}
 	}
-	return nil
+	return nil, err
 }
 
-func (pw *mapsWatcher) fetchMaps() []*MapInfo {
+func (pw *mapsWatcher) fetchMaps() ([]*MapInfo, error) {
 	var currID ebpf.MapID = 0
 	var err error
 	var maps []*MapInfo
+	pw.log.Debug().Msg("fetching maps")
 	for true {
 		currID, err = ebpf.MapGetNextID(currID)
 		if err != nil {
-			break
+			if errors.Is(err, os.ErrNotExist) {
+				break
+			}
+			pw.log.Err(err).Msg("failed to get next map ID")
+			return maps, err
 		}
 		emap, err2 := ebpf.NewMapFromID(currID)
 		if err2 != nil {
@@ -105,7 +116,7 @@ func (pw *mapsWatcher) fetchMaps() []*MapInfo {
 		})
 		_ = emap.Close()
 	}
-	return maps
+	return maps, nil
 }
 
 func mapInfoErr(id ebpf.MapID, err error) *MapInfo {

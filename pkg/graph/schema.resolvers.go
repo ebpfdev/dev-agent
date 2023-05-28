@@ -102,8 +102,12 @@ func (r *mapResolver) EntriesCount(ctx context.Context, obj *model.Map) (int, er
 
 // Programs is the resolver for the programs field.
 func (r *mapResolver) Programs(ctx context.Context, obj *model.Map) ([]*model.Program, error) {
+	progs, err := r.ProgsRepository.GetProgs()
+	if err != nil {
+		return nil, err
+	}
 	result := make([]*model.Program, 0)
-	for _, prog := range r.ProgsRepository.GetProgs() {
+	for _, prog := range progs {
 		mapIDs, _ := prog.Info.MapIDs()
 		for _, mapID := range mapIDs {
 			if mapID == ebpf.MapID(obj.ID) {
@@ -116,8 +120,12 @@ func (r *mapResolver) Programs(ctx context.Context, obj *model.Map) ([]*model.Pr
 
 // Maps is the resolver for the maps field.
 func (r *programResolver) Maps(ctx context.Context, obj *model.Program) ([]*model.Map, error) {
+	emaps, err := r.MapsRepository.GetMaps()
+	if err != nil {
+		return nil, err
+	}
 	goodMaps := make(map[ebpf.MapID]*maps.MapInfo, 0)
-	for _, info := range r.MapsRepository.GetMaps() {
+	for _, info := range emaps {
 		goodMaps[info.ID] = info
 	}
 
@@ -138,18 +146,19 @@ func (r *programResolver) Maps(ctx context.Context, obj *model.Program) ([]*mode
 
 // Program is the resolver for the program field.
 func (r *queryResolver) Program(ctx context.Context, id int) (*model.Program, error) {
-	progs := r.ProgsRepository.GetProgs()
-	for _, prog := range progs {
-		if prog.ID == ebpf.ProgramID(id) {
-			return progInfoToModel(&prog), nil
-		}
+	prog, err := r.ProgsRepository.GetProg(ebpf.ProgramID(id))
+	if err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("program with ID %d not found", id)
+	return progInfoToModel(prog), fmt.Errorf("program with ID %d not found", id)
 }
 
 // Programs is the resolver for the programs field.
 func (r *queryResolver) Programs(ctx context.Context) ([]*model.Program, error) {
-	progs := r.ProgsRepository.GetProgs()
+	progs, err := r.ProgsRepository.GetProgs()
+	if err != nil {
+		return nil, err
+	}
 	result := make([]*model.Program, len(progs))
 	for i, prog := range progs {
 		result[i] = progInfoToModel(&prog)
@@ -159,7 +168,10 @@ func (r *queryResolver) Programs(ctx context.Context) ([]*model.Program, error) 
 
 // Map is the resolver for the map field.
 func (r *queryResolver) Map(ctx context.Context, id int) (*model.Map, error) {
-	emaps := r.MapsRepository.GetMaps()
+	emaps, err := r.MapsRepository.GetMaps()
+	if err != nil {
+		return nil, err
+	}
 	for _, m := range emaps {
 		if m.ID == ebpf.MapID(id) {
 			return mapInfoToModel(m), nil
@@ -170,7 +182,10 @@ func (r *queryResolver) Map(ctx context.Context, id int) (*model.Map, error) {
 
 // Maps is the resolver for the maps field.
 func (r *queryResolver) Maps(ctx context.Context) ([]*model.Map, error) {
-	emaps := r.MapsRepository.GetMaps()
+	emaps, err := r.MapsRepository.GetMaps()
+	if err != nil {
+		return nil, err
+	}
 	result := make([]*model.Map, len(emaps))
 	for i, m := range emaps {
 		result[i] = mapInfoToModel(m)

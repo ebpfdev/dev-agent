@@ -11,8 +11,12 @@ type ProgsCommands struct {
 }
 
 func (pc *ProgsCommands) ProgsList() error {
+	progs, err := pc.ProgsRepo.GetProgs()
+	if err != nil {
+		return err
+	}
 	fmt.Println("ID\tType\tTag\tRunCount\tRunTime\tAvgRunTime")
-	for _, prog := range pc.ProgsRepo.GetProgs() {
+	for _, prog := range progs {
 		if prog.Error != nil {
 			fmt.Printf("%d\t%v\n", prog.ID, prog.Error)
 			continue

@@ -3,13 +3,16 @@ package commands
 import (
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/maps"
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/progs"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v2"
 	"time"
 )
 
 func App() *cli.App {
-	progsRepo := progs.NewWatcher(1 * time.Second)
-	mapsRepo := maps.NewWatcher(1 * time.Second)
+	logger := log.Logger.Level(zerolog.InfoLevel)
+	progsRepo := progs.NewWatcher(logger, 1*time.Second)
+	mapsRepo := maps.NewWatcher(logger, 1*time.Second)
 	progsCommands := &ProgsCommands{
 		ProgsRepo: progsRepo,
 	}

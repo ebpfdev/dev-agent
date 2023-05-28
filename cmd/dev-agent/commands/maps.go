@@ -10,8 +10,12 @@ type MapsCommands struct {
 }
 
 func (mc *MapsCommands) MapsList() error {
+	maps, err := mc.MapsRepo.GetMaps()
+	if err != nil {
+		return err
+	}
 	fmt.Println("ID\tName\tType\tFlags\tIsPinned\tKeySize\tValueSize\tMaxEntries")
-	for _, emap := range mc.MapsRepo.GetMaps() {
+	for _, emap := range maps {
 		if emap.Error != nil {
 			fmt.Printf("%d\t%v\n", emap.ID, emap.Error)
 			continue

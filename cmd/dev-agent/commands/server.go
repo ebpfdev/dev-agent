@@ -21,7 +21,7 @@ type ServerCommands struct {
 
 const defaultPort = "8080"
 
-func (sc *ServerCommands) ServerStart() error {
+func (sc *ServerCommands) ServerStart(pathPrefix string) error {
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -40,7 +40,7 @@ func (sc *ServerCommands) ServerStart() error {
 
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: resolver}))
 
-	mux.Handle("/", playground.Handler("GraphQL playground", "/query"))
+	mux.Handle("/", playground.Handler("GraphQL playground", pathPrefix+"query"))
 	mux.Handle("/query", srv)
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)

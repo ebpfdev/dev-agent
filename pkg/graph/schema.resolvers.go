@@ -150,7 +150,7 @@ func (r *queryResolver) Program(ctx context.Context, id int) (*model.Program, er
 	if err != nil {
 		return nil, err
 	}
-	return progInfoToModel(prog), fmt.Errorf("program with ID %d not found", id)
+	return progInfoToModel(prog), nil
 }
 
 // Programs is the resolver for the programs field.
@@ -168,16 +168,11 @@ func (r *queryResolver) Programs(ctx context.Context) ([]*model.Program, error) 
 
 // Map is the resolver for the map field.
 func (r *queryResolver) Map(ctx context.Context, id int) (*model.Map, error) {
-	emaps, err := r.MapsRepository.GetMaps()
+	emap, err := r.MapsRepository.GetMap(ebpf.MapID(id))
 	if err != nil {
 		return nil, err
 	}
-	for _, m := range emaps {
-		if m.ID == ebpf.MapID(id) {
-			return mapInfoToModel(m), nil
-		}
-	}
-	return nil, fmt.Errorf("map with ID %d not found", id)
+	return mapInfoToModel(emap), nil
 }
 
 // Maps is the resolver for the maps field.

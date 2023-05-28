@@ -71,12 +71,15 @@ func (pw *mapsWatcher) GetMaps() ([]*MapInfo, error) {
 
 func (pw *mapsWatcher) GetMap(id ebpf.MapID) (*MapInfo, error) {
 	maps, err := pw.GetMaps()
+	if err != nil {
+		return nil, err
+	}
 	for _, m := range maps {
 		if m.ID == id {
-			return m, err
+			return m, nil
 		}
 	}
-	return nil, err
+	return nil, errors.New("map not found")
 }
 
 func (pw *mapsWatcher) fetchMaps() ([]*MapInfo, error) {

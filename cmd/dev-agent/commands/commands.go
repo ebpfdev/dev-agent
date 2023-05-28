@@ -37,8 +37,15 @@ func App() *cli.App {
 			},
 			{
 				Name: "server",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "path-prefix",
+						Usage: "path prefix for the web ui to access the server",
+						Value: "/",
+					},
+				},
 				Action: func(c *cli.Context) error {
-					return serverCommands.ServerStart()
+					return serverCommands.ServerStart(c.String("path-prefix"))
 				},
 			},
 			{

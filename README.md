@@ -1,15 +1,24 @@
 # dev-agent
 This agent provides access to system's eBPF-programs and maps to perform remote debugging.
 
+Features:
+* GraphQL model for maps and programs
+* Prometheus metrics exporter (including values of maps entries)
+
+See also [CHANGELOG](./CHANGELOG.md).
+
 # Usage
 
-## GraphQL server
+## Server
 
 ```shell
 sudo ./phydev server [--help]
 ```
 
 GraphQL interface: [http://localhost:8080/](http://localhost:8080/)
+
+Prometheus endpoint: [http://localhost:8080/metrics](http://localhost:8080/metrics)
+
 Schema: [pkg/graph/schema.graphqls](pkg/graph/schema.graphqls)
 
 ![GraphQL interface example](docs/graphql-example.png)
@@ -94,9 +103,10 @@ ID      Name    FD      Type    Flags   IsPinned        KeySize ValueSize       
 
 ## Docker
 
-Instead of `./phydev`, use docker command:
+Instead of `./phydev server`, use docker command:
+
 ```shell
-docker run -ti --rm --privileged -p 8080:8080 ghcr.io/ebpfdev/dev-agent:v0.0.1 /app/dev-agent server
+docker run -ti --rm --privileged -p 8080:8080 ghcr.io/ebpfdev/dev-agent:v0.0.2 server
 ```
 
 # Development

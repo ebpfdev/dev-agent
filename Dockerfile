@@ -24,5 +24,5 @@ COPY --from=0 /build/dev-agent ./
 
 EXPOSE 8080
 
-CMD ["/app/dev-agent"]
+ENTRYPOINT ["/app/dev-agent"]
 

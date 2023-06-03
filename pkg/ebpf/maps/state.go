@@ -16,6 +16,11 @@ type mapsWatcher struct {
 	maps            []*MapInfo
 	error           error
 	isRunning       bool
+
+	mapsCount       *prometheus.GaugeVec
+	mapEntriesCount *prometheus.GaugeVec
+	mapEntryValues  *prometheus.GaugeVec
+	exportConfigs   []*MapExportConfiguration
 }
 
 type MapsWatcher interface {
@@ -23,17 +28,59 @@ type MapsWatcher interface {
 	GetMaps() ([]*MapInfo, error)
 	GetMap(id ebpf.MapID) (*MapInfo, error)
 	RegisterMetrics(registry *prometheus.Registry)
+	AddExportConfig(config *MapExportConfiguration)
 }
 
-func NewWatcher(logger zerolog.Logger, refreshInterval time.Duration) MapsWatcher {
+type WatcherOpts struct {
+	RefreshInterval time.Duration
+}
+
+func NewWatcher(opts *WatcherOpts, logger zerolog.Logger) MapsWatcher {
+	mapsCount := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "devagent",
+		Subsystem: "ebpf",
+		Name:      "map_count",
+		Help:      "Number of eBPF maps",
+	}, []string{"type"})
+	mapEntriesCount := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "devagent",
+		Subsystem: "ebpf",
+		Name:      "map_entry_count",
+		Help:      "Number of entries in an eBPF map",
+	}, []string{"id", "name", "type"})
+	mapEntryValues := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "devagent",
+		Subsystem: "ebpf",
+		Name:      "map_entry_value",
+		Help:      "Value of an eBPF map entry",
+	}, []string{"id", "name", "type", "key", "cpu"})
+
 	return &mapsWatcher{
 		log:             logger,
-		refreshInterval: refreshInterval,
+		refreshInterval: opts.RefreshInterval,
+		mapsCount:       mapsCount,
+		mapEntriesCount: mapEntriesCount,
+		mapEntryValues:  mapEntryValues,
 	}
 }
 
-func (pw *mapsWatcher) RegisterMetrics(registry *prometheus.Registry) {
+func (pw *mapsWatcher) AddExportConfig(config *MapExportConfiguration) {
+	pw.exportConfigs = append(pw.exportConfigs, config)
+}
 
+func (pw *mapsWatcher) RegisterMetrics(registry *prometheus.Registry) {
+	err := registry.Register(pw.mapsCount)
+	if err != nil {
+		pw.log.Err(err).Msg("Failed to register map_count metric")
+	}
+	err = registry.Register(pw.mapEntriesCount)
+	if err != nil {
+		pw.log.Err(err).Msg("Failed to register map_entry_count metric")
+	}
+	err = registry.Register(pw.mapEntryValues)
+	if err != nil {
+		pw.log.Err(err).Msg("Failed to register map_entry_value metric")
+	}
 }
 
 func (pw *mapsWatcher) Run(ctx context.Context) {
@@ -93,6 +140,15 @@ func (pw *mapsWatcher) fetchMaps() ([]*MapInfo, error) {
 	var err error
 	var maps []*MapInfo
 	pw.log.Debug().Msg("fetching maps")
+
+	// maps count by type
+	mapsCount := make(map[ebpf.MapType]int)
+	defer func() {
+		for k, v := range mapsCount {
+			pw.mapsCount.WithLabelValues(k.String()).Set(float64(v))
+		}
+	}()
+
 	for true {
 		currID, err = ebpf.MapGetNextID(currID)
 		if err != nil {
@@ -107,6 +163,9 @@ func (pw *mapsWatcher) fetchMaps() ([]*MapInfo, error) {
 			maps = append(maps, mapInfoErr(currID, err2))
 			continue
 		}
+
+		mapsCount[emap.Type()]++
+
 		info, err2 := emap.Info()
 		name := ""
 		if info != nil {
@@ -124,6 +183,13 @@ func (pw *mapsWatcher) fetchMaps() ([]*MapInfo, error) {
 			MaxEntries: emap.MaxEntries(),
 		})
 		_ = emap.Close()
+
+		for _, config := range pw.exportConfigs {
+			if config.MatchMap(currID, name) {
+				pw.exportMapEntries(currID, name, emap.Type(), config)
+				break
+			}
+		}
 	}
 	return maps, nil
 }

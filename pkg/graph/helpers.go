@@ -1,11 +1,8 @@
 package graph
 
 import (
-	"fmt"
-	"github.com/cilium/ebpf"
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/maps"
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/progs"
-	"github.com/ebpfdev/dev-agent/pkg/ebpf/util"
 	"github.com/ebpfdev/dev-agent/pkg/graph/model"
 )
 
@@ -68,67 +65,20 @@ func mapInfoToModel(m *maps.MapInfo) *model.Map {
 		KeySize:           &keySize,
 		ValueSize:         &valueSize,
 		MaxEntries:        &maxEntries,
-		IsPerCPU:          isPerCPU(m.Type),
-		IsLookupSupported: isLookupSupported(m.Type),
+		IsPerCPU:          maps.IsPerCPU(m.Type),
+		IsLookupSupported: maps.IsLookupSupported(m.Type),
 	}
 }
 
 func formatValue(format model.MapEntryFormat, value []byte) string {
 	switch format {
 	case model.MapEntryFormatString:
-		return string(value)
+		return maps.FormatBytes(maps.DisplayFormatString, value)
 	case model.MapEntryFormatHex:
-		return fmt.Sprintf("%x", value)
+		return maps.FormatBytes(maps.DisplayFormatHex, value)
 	case model.MapEntryFormatNumber:
-		if len(value) <= 8 {
-			buf := make([]byte, 8)
-			copy(buf, value)
-			return fmt.Sprintf("%d", int64(util.GetEndian().Uint64(buf)))
-		}
-		return fmt.Sprintf("%x", value)
+		return maps.FormatBytes(maps.DisplayFormatNumber, value)
 	default:
-		return fmt.Sprintf("%x", value)
+		return maps.FormatBytes(maps.DisplayFormatHex, value)
 	}
-}
-
-func isPerCPU(mt ebpf.MapType) bool {
-	return mt == ebpf.PerCPUHash || mt == ebpf.PerCPUArray || mt == ebpf.LRUCPUHash || mt == ebpf.PerCPUCGroupStorage
-}
-
-var lookupSupported = map[ebpf.MapType]bool{
-	ebpf.UnspecifiedMap:      false,
-	ebpf.Hash:                true,
-	ebpf.Array:               true,
-	ebpf.ProgramArray:        false,
-	ebpf.PerfEventArray:      false,
-	ebpf.PerCPUHash:          true,
-	ebpf.PerCPUArray:         true,
-	ebpf.StackTrace:          false,
-	ebpf.CGroupArray:         false,
-	ebpf.LRUHash:             false,
-	ebpf.LRUCPUHash:          false,
-	ebpf.LPMTrie:             false,
-	ebpf.ArrayOfMaps:         false,
-	ebpf.HashOfMaps:          false,
-	ebpf.DevMap:              false,
-	ebpf.SockMap:             false,
-	ebpf.CPUMap:              false,
-	ebpf.XSKMap:              false,
-	ebpf.SockHash:            false,
-	ebpf.CGroupStorage:       false,
-	ebpf.ReusePortSockArray:  false,
-	ebpf.PerCPUCGroupStorage: false,
-	ebpf.Queue:               false,
-	ebpf.Stack:               false,
-	ebpf.SkStorage:           false,
-	ebpf.DevMapHash:          false,
-	ebpf.StructOpsMap:        false,
-	ebpf.RingBuf:             false,
-	ebpf.InodeStorage:        false,
-	ebpf.TaskStorage:         false,
-}
-
-func isLookupSupported(mt ebpf.MapType) bool {
-	supported, ok := lookupSupported[mt]
-	return ok && supported
 }

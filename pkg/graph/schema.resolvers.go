@@ -17,45 +17,32 @@ import (
 
 // Entries is the resolver for the entries field.
 func (r *mapResolver) Entries(ctx context.Context, obj *model.Map, offset *int, limit *int, keyFormat *model.MapEntryFormat, valueFormat *model.MapEntryFormat) ([]*model.MapEntry, error) {
-	emap, err := ebpf.NewMapFromID(ebpf.MapID(obj.ID))
+	mapEntries, err := maps.GetEntries(ebpf.MapID(obj.ID), false)
 	if err != nil {
 		return nil, err
 	}
 
-	entries := make([]*model.MapEntry, 0)
-
-	if !isLookupSupported(emap.Type()) {
-		return entries, nil
-	}
-
-	var key []byte
-	mapIterator := emap.Iterate()
-	if isPerCPU(emap.Type()) {
-		var bufSlice [][]byte
-		for mapIterator.Next(&key, &bufSlice) {
-			values := make([]string, len(bufSlice))
-			for i, value := range bufSlice {
-				values[i] = formatValue(*valueFormat, value[:])
+	modelEntries := make([]*model.MapEntry, 0)
+	for _, mapEntry := range mapEntries.Entries {
+		modelEntry := &model.MapEntry{
+			Key: formatValue(*keyFormat, mapEntry.Key),
+		}
+		if len(mapEntry.Value) > 0 {
+			value := formatValue(*valueFormat, mapEntry.Value)
+			modelEntry.Value = &value
+		}
+		if len(mapEntry.CPUValues) > 0 {
+			values := make([]string, len(mapEntry.CPUValues))
+			for i, value := range mapEntry.CPUValues {
+				values[i] = formatValue(*valueFormat, value)
 			}
-			entries = append(entries, &model.MapEntry{
-				Key:       formatValue(*keyFormat, key[:]),
-				CPUValues: values,
-				Value:     &values[0],
-			})
+			modelEntry.CPUValues = values
 		}
-	} else {
-		var buf []byte
-		for mapIterator.Next(&key, &buf) {
-			value := formatValue(*valueFormat, buf[:])
-			entries = append(entries, &model.MapEntry{
-				Key:   formatValue(*keyFormat, key[:]),
-				Value: &value,
-			})
-		}
+		modelEntries = append(modelEntries, modelEntry)
 	}
 
-	sort.SliceStable(entries, func(i, j int) bool {
-		return entries[i].Key < entries[j].Key
+	sort.SliceStable(modelEntries, func(i, j int) bool {
+		return modelEntries[i].Key < modelEntries[j].Key
 	})
 
 	offsetStart := 0
@@ -68,36 +55,18 @@ func (r *mapResolver) Entries(ctx context.Context, obj *model.Map, offset *int, 
 	}
 
 	offsetEnd := offsetStart + limitValue
-	if offsetEnd > len(entries) {
-		offsetEnd = len(entries)
+	if offsetEnd > len(modelEntries) {
+		offsetEnd = len(modelEntries)
 	}
 
-	result := entries[offsetStart:offsetEnd]
+	result := modelEntries[offsetStart:offsetEnd]
 
-	return result, mapIterator.Err()
+	return result, nil
 }
 
 // EntriesCount is the resolver for the entriesCount field.
 func (r *mapResolver) EntriesCount(ctx context.Context, obj *model.Map) (int, error) {
-	emap, err := ebpf.NewMapFromID(ebpf.MapID(obj.ID))
-	if err != nil {
-		return 0, err
-	}
-
-	if !isLookupSupported(emap.Type()) {
-		return 0, nil
-	}
-
-	count := 0
-
-	var key []byte
-	var value []byte
-
-	mapIterator := emap.Iterate()
-	for mapIterator.Next(&key, &value) {
-		count++
-	}
-	return count, mapIterator.Err()
+	return maps.CountEntries(ebpf.MapID(obj.ID))
 }
 
 // Programs is the resolver for the programs field.

@@ -14,6 +14,17 @@ Schema: [pkg/graph/schema.graphqls](pkg/graph/schema.graphqls)
 
 ![GraphQL interface example](docs/graphql-example.png)
 
+### Prometheus endpoint
+
+Also, there is a scrape endpoint for Prometheus: [http://localhost:8080/metrics](http://localhost:8080/metrics)
+
+* `devagent_ebpf_prog_count` - number of eBPF programs by `type`
+* `devagent_ebpf_prog_run_count` - number of times an eBPF program has been run (by `id`, `name`, `tag`, `type`)
+* `devagent_ebpf_prog_run_time` - total time spent running eBPF programs (by `id`, `name`, `tag`, `type`)
+
+You can find example of Grafana dashboard in [grafana-ebpf-dashboard.json](./grafana-ebpf-dashboard.json):
+![grafana dashboard with program metrics](docs/grafana-ebpf.png)
+
 
 
 ## CLI commands
@@ -42,6 +53,13 @@ ID      Name    FD      Type    Flags   IsPinned        KeySize ValueSize       
 61      http_in_flight  27      Hash    0       false   48      112     10000
 62      http_notificati 28      PerfEventArray  0       false   4       4       16
 63      open_at_args    29      Hash    0       false   8       128     1024
+```
+
+## Docker
+
+Instead of `./phydev`, use docker command:
+```shell
+docker run -ti --rm --privileged -p 8080:8080 ghcr.io/ebpfdev/dev-agent:v0.0.1 /app/dev-agent server
 ```
 
 # Development

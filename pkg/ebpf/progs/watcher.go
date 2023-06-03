@@ -4,29 +4,73 @@ import (
 	"context"
 	"errors"
 	"github.com/cilium/ebpf"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"os"
+	"strconv"
 	"time"
 )
 
 type progWatcher struct {
-	log           zerolog.Logger
-	checkInterval time.Duration
-	progs         []ProgInfo
-	error         error
-	isRunning     bool
+	log             zerolog.Logger
+	refreshInterval time.Duration
+	progs           []ProgInfo
+	error           error
+	isRunning       bool
+	progRunCount    *prometheus.GaugeVec
+	progRunTime     *prometheus.GaugeVec
+	progsCount      *prometheus.GaugeVec
 }
 
 type ProgWatcher interface {
 	Run(ctx context.Context)
 	GetProgs() ([]ProgInfo, error)
 	GetProg(id ebpf.ProgramID) (*ProgInfo, error)
+	RegisterMetrics(registry *prometheus.Registry)
 }
 
-func NewWatcher(logger zerolog.Logger, checkInterval time.Duration) ProgWatcher {
+func NewWatcher(logger zerolog.Logger, refreshInterval time.Duration) ProgWatcher {
+	progRunCount := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "devagent",
+		Subsystem: "ebpf",
+		Name:      "prog_run_count",
+		Help:      "Number of times an eBPF program has been run",
+	}, []string{"id", "type", "tag", "name"})
+	progRunTime := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "devagent",
+		Subsystem: "ebpf",
+		Name:      "prog_run_time",
+		Help:      "Total time spent running eBPF programs",
+	}, []string{"id", "type", "tag", "name"})
+	progsCount := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "devagent",
+		Subsystem: "ebpf",
+		Name:      "prog_count",
+		Help:      "Number of eBPF programs",
+	}, []string{"type"})
+
 	return &progWatcher{
-		log:           logger,
-		checkInterval: checkInterval,
+		log:             logger,
+		refreshInterval: refreshInterval,
+		progRunCount:    progRunCount,
+		progRunTime:     progRunTime,
+		progsCount:      progsCount,
+	}
+}
+
+func (pw *progWatcher) RegisterMetrics(registry *prometheus.Registry) {
+	err := registry.Register(pw.progRunCount)
+	if err != nil {
+		log.Err(err).Msg("failed to register prog_run_count metric")
+	}
+	err = registry.Register(pw.progRunTime)
+	if err != nil {
+		log.Err(err).Msg("failed to register prog_run_time metric")
+	}
+	err = registry.Register(pw.progsCount)
+	if err != nil {
+		log.Err(err).Msg("failed to register prog_count metric")
 	}
 }
 
@@ -36,7 +80,7 @@ func (pw *progWatcher) Run(ctx context.Context) {
 	}
 	go func() {
 		pw.isRunning = true
-		ticker := time.NewTicker(pw.checkInterval)
+		ticker := time.NewTicker(pw.refreshInterval)
 		ctx.Done()
 		for {
 			select {
@@ -84,6 +128,15 @@ func (pw *progWatcher) fetchProgs() ([]ProgInfo, error) {
 	var err error
 	var progs []ProgInfo
 	pw.log.Debug().Msg("fetching progs")
+
+	// progs count by type
+	var progsCount = map[ebpf.ProgramType]uint64{}
+	defer func() {
+		for progType, count := range progsCount {
+			pw.progsCount.WithLabelValues(progType.String()).Set(float64(count))
+		}
+	}()
+
 	for true {
 		currID, err = ebpf.ProgramGetNextID(currID)
 		if err != nil {
@@ -99,6 +152,32 @@ func (pw *progWatcher) fetchProgs() ([]ProgInfo, error) {
 			continue
 		}
 		info, err2 := prog.Info()
+
+		runCount := uint64(0)
+		runTime := time.Duration(0)
+		var labelValues []string
+		if info != nil {
+			runCount, _ = info.RunCount()
+			runTime, _ = info.Runtime()
+			labelValues = []string{
+				strconv.Itoa(int(currID)),
+				prog.Type().String(),
+				info.Tag,
+				info.Name,
+			}
+		} else {
+			labelValues = []string{
+				strconv.Itoa(int(currID)),
+				prog.Type().String(),
+				"",
+				"",
+			}
+		}
+
+		pw.progRunCount.WithLabelValues(labelValues...).Set(float64(runCount))
+		pw.progRunTime.WithLabelValues(labelValues...).Set(runTime.Seconds())
+		progsCount[prog.Type()]++
+
 		progs = append(progs, ProgInfo{
 			ID:          currID,
 			Type:        prog.Type(),

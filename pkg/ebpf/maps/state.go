@@ -4,30 +4,36 @@ import (
 	"context"
 	"errors"
 	"github.com/cilium/ebpf"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"os"
 	"time"
 )
 
 type mapsWatcher struct {
-	log           zerolog.Logger
-	checkInterval time.Duration
-	maps          []*MapInfo
-	error         error
-	isRunning     bool
+	log             zerolog.Logger
+	refreshInterval time.Duration
+	maps            []*MapInfo
+	error           error
+	isRunning       bool
 }
 
 type MapsWatcher interface {
 	Run(ctx context.Context)
 	GetMaps() ([]*MapInfo, error)
 	GetMap(id ebpf.MapID) (*MapInfo, error)
+	RegisterMetrics(registry *prometheus.Registry)
 }
 
-func NewWatcher(logger zerolog.Logger, checkInterval time.Duration) MapsWatcher {
+func NewWatcher(logger zerolog.Logger, refreshInterval time.Duration) MapsWatcher {
 	return &mapsWatcher{
-		log:           logger,
-		checkInterval: checkInterval,
+		log:             logger,
+		refreshInterval: refreshInterval,
 	}
+}
+
+func (pw *mapsWatcher) RegisterMetrics(registry *prometheus.Registry) {
+
 }
 
 func (pw *mapsWatcher) Run(ctx context.Context) {
@@ -36,7 +42,7 @@ func (pw *mapsWatcher) Run(ctx context.Context) {
 	}
 	go func() {
 		pw.isRunning = true
-		ticker := time.NewTicker(pw.checkInterval)
+		ticker := time.NewTicker(pw.refreshInterval)
 		ctx.Done()
 		for {
 			select {

@@ -8,6 +8,8 @@ import (
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/progs"
 	"github.com/ebpfdev/dev-agent/pkg/graph"
 	"github.com/ebpfdev/dev-agent/pkg/graph/generated"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 	"log"
 	"net/http"
@@ -33,8 +35,13 @@ func (sc *ServerCommands) ServerStart(options *ServerStartOptions) error {
 		port = defaultPort
 	}
 
+	registry := prometheus.NewRegistry()
+
 	sc.ProgsRepo.Run(context.Background())
 	sc.MapsRepo.Run(context.Background())
+
+	sc.ProgsRepo.RegisterMetrics(registry)
+	sc.MapsRepo.RegisterMetrics(registry)
 
 	resolver := &graph.Resolver{
 		ProgsRepository: sc.ProgsRepo,
@@ -47,6 +54,11 @@ func (sc *ServerCommands) ServerStart(options *ServerStartOptions) error {
 
 	mux.Handle("/", playground.Handler("GraphQL playground", options.PathPrefix+"query"))
 	mux.Handle("/query", srv)
+	mux.Handle("/metrics", promhttp.HandlerFor(
+		registry,
+		promhttp.HandlerOpts{
+			EnableOpenMetrics: true,
+		}))
 
 	if !options.SkipWelcome {
 		log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)

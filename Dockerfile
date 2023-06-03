@@ -22,5 +22,7 @@ LABEL org.opencontainers.image.source=https://github.com/ebpfdev/dev-agent
 WORKDIR /app
 COPY --from=0 /build/dev-agent ./
 
-CMD ["/app/dev-agent"]
+EXPOSE 8080
+
+ENTRYPOINT ["/app/dev-agent"]
 

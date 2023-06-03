@@ -1,13 +1,12 @@
 package graph
 
 import (
-	"encoding/binary"
 	"fmt"
 	"github.com/cilium/ebpf"
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/maps"
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/progs"
+	"github.com/ebpfdev/dev-agent/pkg/ebpf/util"
 	"github.com/ebpfdev/dev-agent/pkg/graph/model"
-	"unsafe"
 )
 
 func progInfoToModel(prog *progs.ProgInfo) *model.Program {
@@ -74,22 +73,6 @@ func mapInfoToModel(m *maps.MapInfo) *model.Map {
 	}
 }
 
-var nativeEndian binary.ByteOrder
-
-func init() {
-	buf := [2]byte{}
-	*(*uint16)(unsafe.Pointer(&buf[0])) = uint16(0xABCD)
-
-	switch buf {
-	case [2]byte{0xCD, 0xAB}:
-		nativeEndian = binary.LittleEndian
-	case [2]byte{0xAB, 0xCD}:
-		nativeEndian = binary.BigEndian
-	default:
-		panic("Could not determine native endianness.")
-	}
-}
-
 func formatValue(format model.MapEntryFormat, value []byte) string {
 	switch format {
 	case model.MapEntryFormatString:
@@ -97,10 +80,10 @@ func formatValue(format model.MapEntryFormat, value []byte) string {
 	case model.MapEntryFormatHex:
 		return fmt.Sprintf("%x", value)
 	case model.MapEntryFormatNumber:
-		if len(value) == 8 {
+		if len(value) <= 8 {
 			buf := make([]byte, 8)
 			copy(buf, value)
-			return fmt.Sprintf("%d", int64(nativeEndian.Uint64(buf)))
+			return fmt.Sprintf("%d", int64(util.GetEndian().Uint64(buf)))
 		}
 		return fmt.Sprintf("%x", value)
 	default:

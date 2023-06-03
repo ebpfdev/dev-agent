@@ -69,6 +69,13 @@ devagent_ebpf_map_entry_value{cpu="0",id="25",key="(fprintd)",name="AT_SYSCALLNU
 This is how it may look in Grafana (top 10 processes doing most of syscalls):
 ![Grafana showing top 10 processes doing most of syscalls](docs/grafana-syscallnum.png)
 
+Full demo in terminal:
+```shell
+sudo bpftrace -e 'tracepoint:raw_syscalls:sys_enter { @SYSCALLNUM[comm] = count(); }' &
+docker run -ti --rm --privileged -p 8080:8080 ghcr.io/ebpfdev/dev-agent:v0.0.2 server --etm -:AT_SYSCALLNUM:string
+curl http://localhost:8080/metrics | grep devagent_ebpf_map_entry_count
+```
+
 Run `./phydev server --help` for more details on this flag.
 
 ## CLI commands

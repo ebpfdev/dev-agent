@@ -1,4 +1,4 @@
-v0.0.2 // 3 july 2023 / export to Prometheus metrics
+v0.0.2 // 3 june 2023 / export to Prometheus metrics
 --
 
 * (feature) eBPF metrics prometheus exporter:
@@ -10,7 +10,7 @@ v0.0.2 // 3 july 2023 / export to Prometheus metrics
   * removing trailing zeros from byte array, when converting map's keys/values to string
   * fixed converting map's key/value to number, when it's less than 8 bytes
 
-v0.0.1 // 28 june 2023 / GraphQL kickstarted
+v0.0.1 // 28 may 2023 / GraphQL kickstarted
 --
 
 * GraphQL API, which exposes:

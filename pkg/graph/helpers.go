@@ -3,7 +3,9 @@ package graph
 import (
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/maps"
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/progs"
+	"github.com/ebpfdev/dev-agent/pkg/ebpf/tasks"
 	"github.com/ebpfdev/dev-agent/pkg/graph/model"
+	"strconv"
 )
 
 func progInfoToModel(prog *progs.ProgInfo) *model.Program {
@@ -80,5 +82,19 @@ func formatValue(format model.MapEntryFormat, value []byte) string {
 		return maps.FormatBytes(maps.DisplayFormatNumber, value)
 	default:
 		return maps.FormatBytes(maps.DisplayFormatHex, value)
+	}
+}
+
+func taskInfoToModel(ti *tasks.TaskInfo) *model.Task {
+	probeOffsetStr := "0x" + strconv.FormatUint(ti.ProbeOffset, 16)
+	probeAddrStr := "0x" + strconv.FormatUint(ti.ProbeAddr, 16)
+
+	return &model.Task{
+		Pid:         int(ti.PID),
+		Fd:          int(ti.FD),
+		Type:        ti.Type.String(),
+		Name:        &ti.Name,
+		ProbeOffset: &probeOffsetStr,
+		ProbeAddr:   &probeAddrStr,
 	}
 }

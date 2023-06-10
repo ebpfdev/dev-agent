@@ -123,9 +123,11 @@ docker run -ti --rm --privileged -p 8080:8080 ghcr.io/ebpfdev/dev-agent:v0.0.2 s
 go build -o phydev cmd/dev-agent/main.go
 ```
 
-## Update GraphQL models from schema
+## Updated generated code
 
-To update GraphQL models, run:
+This will update GraphQL code and some other constants:
+
 ```shell
+go install golang.org/x/tools/cmd/stringer@latest
 go generate ./...
 ```

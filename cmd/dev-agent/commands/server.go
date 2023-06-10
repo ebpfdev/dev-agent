@@ -6,6 +6,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/maps"
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/progs"
+	"github.com/ebpfdev/dev-agent/pkg/ebpf/tasks"
 	"github.com/ebpfdev/dev-agent/pkg/graph"
 	"github.com/ebpfdev/dev-agent/pkg/graph/generated"
 	"github.com/prometheus/client_golang/prometheus"
@@ -14,11 +15,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 type ServerCommands struct {
 	MapsRepo  maps.MapsWatcher
 	ProgsRepo progs.ProgWatcher
+	TasksRepo tasks.TaskWatcher
 }
 
 type ServerStartOptions struct {
@@ -37,8 +40,9 @@ func (sc *ServerCommands) ServerStart(options *ServerStartOptions) error {
 
 	registry := prometheus.NewRegistry()
 
-	sc.ProgsRepo.Run(context.Background())
-	sc.MapsRepo.Run(context.Background())
+	sc.ProgsRepo.Run(context.Background(), 1*time.Second)
+	sc.MapsRepo.Run(context.Background(), 1*time.Second)
+	sc.TasksRepo.Run(context.Background(), 1*time.Second)
 
 	sc.ProgsRepo.RegisterMetrics(registry)
 	sc.MapsRepo.RegisterMetrics(registry)
@@ -46,6 +50,7 @@ func (sc *ServerCommands) ServerStart(options *ServerStartOptions) error {
 	resolver := &graph.Resolver{
 		ProgsRepository: sc.ProgsRepo,
 		MapsRepository:  sc.MapsRepo,
+		TasksRepository: sc.TasksRepo,
 	}
 
 	mux := http.NewServeMux()

@@ -5,11 +5,13 @@ go 1.19
 require (
 	github.com/99designs/gqlgen v0.17.31
 	github.com/cilium/ebpf v0.10.0
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.15.1
 	github.com/rs/cors v1.9.0
 	github.com/rs/zerolog v1.29.1
 	github.com/urfave/cli/v2 v2.25.3
 	github.com/vektah/gqlparser/v2 v2.5.1
+	golang.org/x/sys v0.8.0
 )
 
 require (
@@ -30,7 +32,6 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	golang.org/x/mod v0.8.0 // indirect
-	golang.org/x/sys v0.8.0 // indirect
 	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/tools v0.6.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect

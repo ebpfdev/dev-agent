@@ -13,24 +13,23 @@ import (
 )
 
 type progWatcher struct {
-	log             zerolog.Logger
-	refreshInterval time.Duration
-	progs           []ProgInfo
-	error           error
-	isRunning       bool
-	progRunCount    *prometheus.GaugeVec
-	progRunTime     *prometheus.GaugeVec
-	progsCount      *prometheus.GaugeVec
+	log          zerolog.Logger
+	progs        []ProgInfo
+	error        error
+	isRunning    bool
+	progRunCount *prometheus.GaugeVec
+	progRunTime  *prometheus.GaugeVec
+	progsCount   *prometheus.GaugeVec
 }
 
 type ProgWatcher interface {
-	Run(ctx context.Context)
+	Run(ctx context.Context, refreshInterval time.Duration)
 	GetProgs() ([]ProgInfo, error)
 	GetProg(id ebpf.ProgramID) (*ProgInfo, error)
 	RegisterMetrics(registry *prometheus.Registry)
 }
 
-func NewWatcher(logger zerolog.Logger, refreshInterval time.Duration) ProgWatcher {
+func NewWatcher(logger zerolog.Logger) ProgWatcher {
 	progRunCount := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "devagent",
 		Subsystem: "ebpf",
@@ -51,11 +50,10 @@ func NewWatcher(logger zerolog.Logger, refreshInterval time.Duration) ProgWatche
 	}, []string{"type"})
 
 	return &progWatcher{
-		log:             logger,
-		refreshInterval: refreshInterval,
-		progRunCount:    progRunCount,
-		progRunTime:     progRunTime,
-		progsCount:      progsCount,
+		log:          logger,
+		progRunCount: progRunCount,
+		progRunTime:  progRunTime,
+		progsCount:   progsCount,
 	}
 }
 
@@ -74,13 +72,13 @@ func (pw *progWatcher) RegisterMetrics(registry *prometheus.Registry) {
 	}
 }
 
-func (pw *progWatcher) Run(ctx context.Context) {
+func (pw *progWatcher) Run(ctx context.Context, refreshInterval time.Duration) {
 	if pw.isRunning {
 		return
 	}
 	go func() {
 		pw.isRunning = true
-		ticker := time.NewTicker(pw.refreshInterval)
+		ticker := time.NewTicker(refreshInterval)
 		ctx.Done()
 		for {
 			select {

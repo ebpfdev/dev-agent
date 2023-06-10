@@ -3,18 +3,17 @@ package commands
 import (
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/maps"
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/progs"
+	"github.com/ebpfdev/dev-agent/pkg/ebpf/tasks"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v2"
-	"time"
 )
 
 func App() *cli.App {
 	logger := log.Logger.Level(zerolog.InfoLevel)
-	progsRepo := progs.NewWatcher(logger, 1*time.Second)
-	mapsRepo := maps.NewWatcher(&maps.WatcherOpts{
-		RefreshInterval: 1 * time.Second,
-	}, logger)
+	progsRepo := progs.NewWatcher(logger)
+	mapsRepo := maps.NewWatcher(logger)
+	tasksRepo := tasks.NewTaskWatcher()
 	progsCommands := &ProgsCommands{
 		ProgsRepo: progsRepo,
 	}
@@ -24,6 +23,7 @@ func App() *cli.App {
 	serverCommands := &ServerCommands{
 		ProgsRepo: progsRepo,
 		MapsRepo:  mapsRepo,
+		TasksRepo: tasksRepo,
 	}
 
 	return &cli.App{

@@ -3,6 +3,7 @@ package graph
 import (
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/maps"
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/progs"
+	"github.com/ebpfdev/dev-agent/pkg/ebpf/tasks"
 )
 
 //go:generate rm -f generated/generated.go
@@ -15,4 +16,5 @@ import (
 type Resolver struct {
 	ProgsRepository progs.ProgWatcher
 	MapsRepository  maps.MapsWatcher
+	TasksRepository tasks.TaskWatcher
 }

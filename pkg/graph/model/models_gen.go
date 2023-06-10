@@ -43,6 +43,16 @@ type Program struct {
 	VerifierLog *string  `json:"verifierLog,omitempty"`
 	IsPinned    *bool    `json:"isPinned,omitempty"`
 	Maps        []*Map   `json:"maps"`
+	Tasks       []*Task  `json:"tasks"`
+}
+
+type Task struct {
+	Pid         int     `json:"pid"`
+	Fd          int     `json:"fd"`
+	Type        string  `json:"type"`
+	Name        *string `json:"name,omitempty"`
+	ProbeOffset *string `json:"probeOffset,omitempty"`
+	ProbeAddr   *string `json:"probeAddr,omitempty"`
 }
 
 type MapEntryFormat string

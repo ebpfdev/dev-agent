@@ -24,7 +24,7 @@ type mapsWatcher struct {
 }
 
 type MapsWatcher interface {
-	Run(ctx context.Context)
+	Run(ctx context.Context, refreshInterval time.Duration)
 	GetMaps() ([]*MapInfo, error)
 	GetMap(id ebpf.MapID) (*MapInfo, error)
 	RegisterMetrics(registry *prometheus.Registry)
@@ -35,7 +35,7 @@ type WatcherOpts struct {
 	RefreshInterval time.Duration
 }
 
-func NewWatcher(opts *WatcherOpts, logger zerolog.Logger) MapsWatcher {
+func NewWatcher(logger zerolog.Logger) MapsWatcher {
 	mapsCount := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "devagent",
 		Subsystem: "ebpf",
@@ -57,7 +57,6 @@ func NewWatcher(opts *WatcherOpts, logger zerolog.Logger) MapsWatcher {
 
 	return &mapsWatcher{
 		log:             logger,
-		refreshInterval: opts.RefreshInterval,
 		mapsCount:       mapsCount,
 		mapEntriesCount: mapEntriesCount,
 		mapEntryValues:  mapEntryValues,
@@ -83,13 +82,13 @@ func (pw *mapsWatcher) RegisterMetrics(registry *prometheus.Registry) {
 	}
 }
 
-func (pw *mapsWatcher) Run(ctx context.Context) {
+func (pw *mapsWatcher) Run(ctx context.Context, refreshInterval time.Duration) {
 	if pw.isRunning {
 		return
 	}
 	go func() {
 		pw.isRunning = true
-		ticker := time.NewTicker(pw.refreshInterval)
+		ticker := time.NewTicker(refreshInterval)
 		ctx.Done()
 		for {
 			select {

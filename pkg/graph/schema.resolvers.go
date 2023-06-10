@@ -113,6 +113,21 @@ func (r *programResolver) Maps(ctx context.Context, obj *model.Program) ([]*mode
 	return mapsResult, nil
 }
 
+// Tasks is the resolver for the tasks field.
+func (r *programResolver) Tasks(ctx context.Context, obj *model.Program) ([]*model.Task, error) {
+	tasks, err := r.TasksRepository.GetTasks()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.Task, 0)
+	for _, task := range tasks {
+		if task.ProgramID == ebpf.ProgramID(obj.ID) {
+			result = append(result, taskInfoToModel(task))
+		}
+	}
+	return result, nil
+}
+
 // Program is the resolver for the program field.
 func (r *queryResolver) Program(ctx context.Context, id int) (*model.Program, error) {
 	prog, err := r.ProgsRepository.GetProg(ebpf.ProgramID(id))

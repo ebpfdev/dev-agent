@@ -84,13 +84,13 @@ models:
       - github.com/99designs/gqlgen/graphql.Int32
   Program:
     fields:
-      maps:
-        resolver: true
+      maps: { resolver: true}
+      tasks: { resolver: true}
   Map:
     fields:
-      programs:
-        resolver: true
-      entries:
-        resolver: true
-      entriesCount:
-        resolver: true
+      programs: { resolver: true}
+      entries: { resolver: true}
+      entriesCount: { resolver: true}
+  Task:
+    fields:
+      program: { resolver: true}

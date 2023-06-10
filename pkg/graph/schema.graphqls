@@ -15,6 +15,22 @@ type Program {
     isPinned: Boolean
 
     maps: [Map!]!
+    tasks: [Task!]!
+}
+
+type Task {
+    pid: Int!
+    fd: Int!
+
+# there is no way to reach Task rather than through Program, so no need to have this yet
+#    programId: Int!
+#    program: Program!
+
+    type: String!
+    name: String
+
+    probeOffset: String
+    probeAddr: String
 }
 
 type Map {

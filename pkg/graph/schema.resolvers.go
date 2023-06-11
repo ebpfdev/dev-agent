@@ -172,6 +172,15 @@ func (r *queryResolver) Maps(ctx context.Context) ([]*model.Map, error) {
 	return result, nil
 }
 
+// ConnectedGraph is the resolver for the connectedGraph field.
+func (r *queryResolver) ConnectedGraph(ctx context.Context, from int, fromType model.IDType) (*model.ConnectedGraph, error) {
+	progsMap, mapsMap, err := r.resolveConnectedGraph(from, fromType)
+	if err != nil {
+		return nil, err
+	}
+	return buildConnectedGraph(progsMap, mapsMap), nil
+}
+
 // Map returns generated.MapResolver implementation.
 func (r *Resolver) Map() generated.MapResolver { return &mapResolver{r} }
 

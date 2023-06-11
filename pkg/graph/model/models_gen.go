@@ -8,6 +8,11 @@ import (
 	"strconv"
 )
 
+type ConnectedGraph struct {
+	Programs []*Program `json:"programs"`
+	Maps     []*Map     `json:"maps"`
+}
+
 type Map struct {
 	ID                int         `json:"id"`
 	Error             *string     `json:"error,omitempty"`
@@ -53,6 +58,47 @@ type Task struct {
 	Name        *string `json:"name,omitempty"`
 	ProbeOffset *string `json:"probeOffset,omitempty"`
 	ProbeAddr   *string `json:"probeAddr,omitempty"`
+}
+
+type IDType string
+
+const (
+	IDTypeProgram IDType = "PROGRAM"
+	IDTypeMap     IDType = "MAP"
+)
+
+var AllIDType = []IDType{
+	IDTypeProgram,
+	IDTypeMap,
+}
+
+func (e IDType) IsValid() bool {
+	switch e {
+	case IDTypeProgram, IDTypeMap:
+		return true
+	}
+	return false
+}
+
+func (e IDType) String() string {
+	return string(e)
+}
+
+func (e *IDType) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = IDType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid IdType", str)
+	}
+	return nil
+}
+
+func (e IDType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 type MapEntryFormat string

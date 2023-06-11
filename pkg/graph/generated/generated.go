@@ -45,6 +45,11 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	ConnectedGraph struct {
+		Maps     func(childComplexity int) int
+		Programs func(childComplexity int) int
+	}
+
 	Map struct {
 		Entries           func(childComplexity int, offset *int, limit *int, keyFormat *model.MapEntryFormat, valueFormat *model.MapEntryFormat) int
 		EntriesCount      func(childComplexity int) int
@@ -84,10 +89,11 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		Map      func(childComplexity int, id int) int
-		Maps     func(childComplexity int) int
-		Program  func(childComplexity int, id int) int
-		Programs func(childComplexity int) int
+		ConnectedGraph func(childComplexity int, from int, fromType model.IDType) int
+		Map            func(childComplexity int, id int) int
+		Maps           func(childComplexity int) int
+		Program        func(childComplexity int, id int) int
+		Programs       func(childComplexity int) int
 	}
 
 	Task struct {
@@ -114,6 +120,7 @@ type QueryResolver interface {
 	Programs(ctx context.Context) ([]*model.Program, error)
 	Map(ctx context.Context, id int) (*model.Map, error)
 	Maps(ctx context.Context) ([]*model.Map, error)
+	ConnectedGraph(ctx context.Context, from int, fromType model.IDType) (*model.ConnectedGraph, error)
 }
 
 type executableSchema struct {
@@ -130,6 +137,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	ec := executionContext{nil, e}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "ConnectedGraph.maps":
+		if e.complexity.ConnectedGraph.Maps == nil {
+			break
+		}
+
+		return e.complexity.ConnectedGraph.Maps(childComplexity), true
+
+	case "ConnectedGraph.programs":
+		if e.complexity.ConnectedGraph.Programs == nil {
+			break
+		}
+
+		return e.complexity.ConnectedGraph.Programs(childComplexity), true
 
 	case "Map.entries":
 		if e.complexity.Map.Entries == nil {
@@ -339,6 +360,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Program.VerifierLog(childComplexity), true
 
+	case "Query.connectedGraph":
+		if e.complexity.Query.ConnectedGraph == nil {
+			break
+		}
+
+		args, err := ec.field_Query_connectedGraph_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ConnectedGraph(childComplexity, args["from"].(int), args["fromType"].(model.IDType)), true
+
 	case "Query.map":
 		if e.complexity.Query.Map == nil {
 			break
@@ -543,12 +576,24 @@ type MapEntry {
     cpuValues: [String!]!
 }
 
+enum IdType {
+    PROGRAM
+    MAP
+}
+
+type ConnectedGraph {
+    programs: [Program!]!
+    maps: [Map!]!
+}
+
 type Query {
     program(id: Int!): Program!
     programs: [Program!]!
     map(id: Int!): Map!
     maps: [Map!]!
-}`, BuiltIn: false},
+    connectedGraph(from: Int!, fromType: IdType!): ConnectedGraph!
+}
+`, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -610,6 +655,30 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 		}
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_connectedGraph_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["from"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["from"] = arg0
+	var arg1 model.IDType
+	if tmp, ok := rawArgs["fromType"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fromType"))
+		arg1, err = ec.unmarshalNIdType2githubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐIDType(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["fromType"] = arg1
 	return args, nil
 }
 
@@ -680,6 +749,150 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ************************** directives.gotpl **************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _ConnectedGraph_programs(ctx context.Context, field graphql.CollectedField, obj *model.ConnectedGraph) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ConnectedGraph_programs(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Programs, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Program)
+	fc.Result = res
+	return ec.marshalNProgram2ᚕᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐProgramᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ConnectedGraph_programs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectedGraph",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Program_id(ctx, field)
+			case "error":
+				return ec.fieldContext_Program_error(ctx, field)
+			case "name":
+				return ec.fieldContext_Program_name(ctx, field)
+			case "type":
+				return ec.fieldContext_Program_type(ctx, field)
+			case "tag":
+				return ec.fieldContext_Program_tag(ctx, field)
+			case "runTime":
+				return ec.fieldContext_Program_runTime(ctx, field)
+			case "runCount":
+				return ec.fieldContext_Program_runCount(ctx, field)
+			case "btfId":
+				return ec.fieldContext_Program_btfId(ctx, field)
+			case "verifierLog":
+				return ec.fieldContext_Program_verifierLog(ctx, field)
+			case "isPinned":
+				return ec.fieldContext_Program_isPinned(ctx, field)
+			case "maps":
+				return ec.fieldContext_Program_maps(ctx, field)
+			case "tasks":
+				return ec.fieldContext_Program_tasks(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Program", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectedGraph_maps(ctx context.Context, field graphql.CollectedField, obj *model.ConnectedGraph) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ConnectedGraph_maps(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Maps, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Map)
+	fc.Result = res
+	return ec.marshalNMap2ᚕᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ConnectedGraph_maps(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectedGraph",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Map_id(ctx, field)
+			case "error":
+				return ec.fieldContext_Map_error(ctx, field)
+			case "name":
+				return ec.fieldContext_Map_name(ctx, field)
+			case "type":
+				return ec.fieldContext_Map_type(ctx, field)
+			case "flags":
+				return ec.fieldContext_Map_flags(ctx, field)
+			case "isPinned":
+				return ec.fieldContext_Map_isPinned(ctx, field)
+			case "keySize":
+				return ec.fieldContext_Map_keySize(ctx, field)
+			case "valueSize":
+				return ec.fieldContext_Map_valueSize(ctx, field)
+			case "maxEntries":
+				return ec.fieldContext_Map_maxEntries(ctx, field)
+			case "isPerCPU":
+				return ec.fieldContext_Map_isPerCPU(ctx, field)
+			case "isLookupSupported":
+				return ec.fieldContext_Map_isLookupSupported(ctx, field)
+			case "entries":
+				return ec.fieldContext_Map_entries(ctx, field)
+			case "entriesCount":
+				return ec.fieldContext_Map_entriesCount(ctx, field)
+			case "programs":
+				return ec.fieldContext_Map_programs(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Map", field.Name)
+		},
+	}
+	return fc, nil
+}
 
 func (ec *executionContext) _Map_id(ctx context.Context, field graphql.CollectedField, obj *model.Map) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Map_id(ctx, field)
@@ -2304,6 +2517,67 @@ func (ec *executionContext) fieldContext_Query_maps(ctx context.Context, field g
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Map", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_connectedGraph(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_connectedGraph(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().ConnectedGraph(rctx, fc.Args["from"].(int), fc.Args["fromType"].(model.IDType))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.ConnectedGraph)
+	fc.Result = res
+	return ec.marshalNConnectedGraph2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐConnectedGraph(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_connectedGraph(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "programs":
+				return ec.fieldContext_ConnectedGraph_programs(ctx, field)
+			case "maps":
+				return ec.fieldContext_ConnectedGraph_maps(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectedGraph", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_connectedGraph_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
 	}
 	return fc, nil
 }
@@ -4473,6 +4747,41 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(ctx context.Conte
 
 // region    **************************** object.gotpl ****************************
 
+var connectedGraphImplementors = []string{"ConnectedGraph"}
+
+func (ec *executionContext) _ConnectedGraph(ctx context.Context, sel ast.SelectionSet, obj *model.ConnectedGraph) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, connectedGraphImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ConnectedGraph")
+		case "programs":
+
+			out.Values[i] = ec._ConnectedGraph_programs(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "maps":
+
+			out.Values[i] = ec._ConnectedGraph_maps(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var mapImplementors = []string{"Map"}
 
 func (ec *executionContext) _Map(ctx context.Context, sel ast.SelectionSet, obj *model.Map) graphql.Marshaler {
@@ -4854,6 +5163,29 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_maps(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
+			}
+
+			out.Concurrently(i, func() graphql.Marshaler {
+				return rrm(innerCtx)
+			})
+		case "connectedGraph":
+			field := field
+
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_connectedGraph(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
@@ -5275,6 +5607,30 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNConnectedGraph2githubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐConnectedGraph(ctx context.Context, sel ast.SelectionSet, v model.ConnectedGraph) graphql.Marshaler {
+	return ec._ConnectedGraph(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNConnectedGraph2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐConnectedGraph(ctx context.Context, sel ast.SelectionSet, v *model.ConnectedGraph) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ConnectedGraph(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNIdType2githubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐIDType(ctx context.Context, v interface{}) (model.IDType, error) {
+	var res model.IDType
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNIdType2githubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐIDType(ctx context.Context, sel ast.SelectionSet, v model.IDType) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v interface{}) (int, error) {

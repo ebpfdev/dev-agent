@@ -70,9 +70,20 @@ type MapEntry {
     cpuValues: [String!]!
 }
 
+enum IdType {
+    PROGRAM
+    MAP
+}
+
+type ConnectedGraph {
+    programs: [Program!]!
+    maps: [Map!]!
+}
+
 type Query {
     program(id: Int!): Program!
     programs: [Program!]!
     map(id: Int!): Map!
     maps: [Map!]!
+    connectedGraph(from: Int!, fromType: IdType!): ConnectedGraph!
 }

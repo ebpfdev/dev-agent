@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"github.com/cilium/ebpf"
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/maps"
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/progs"
 	"github.com/ebpfdev/dev-agent/pkg/ebpf/tasks"
@@ -97,4 +98,15 @@ func taskInfoToModel(ti *tasks.TaskInfo) *model.Task {
 		ProbeOffset: &probeOffsetStr,
 		ProbeAddr:   &probeAddrStr,
 	}
+}
+
+func buildConnectedGraph(progsMap map[ebpf.ProgramID]*progs.ProgInfo, mapsMap map[ebpf.MapID]*maps.MapInfo) *model.ConnectedGraph {
+	result := &model.ConnectedGraph{}
+	for _, info := range progsMap {
+		result.Programs = append(result.Programs, progInfoToModel(info))
+	}
+	for _, info := range mapsMap {
+		result.Maps = append(result.Maps, mapInfoToModel(info))
+	}
+	return result
 }

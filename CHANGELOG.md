@@ -1,3 +1,9 @@
+v0.0.3 // 11 june 2023 / more connections
+--
+
+* (feature) exposed tracepoints that programs are attached to
+* (feature) a new method in GraphQL to get a connected graph starting from a specific program or map
+
 v0.0.2 // 3 june 2023 / export to Prometheus metrics
 --
 

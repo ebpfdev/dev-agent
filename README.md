@@ -72,7 +72,7 @@ This is how it may look in Grafana (top 10 processes doing most of syscalls):
 Full demo in terminal:
 ```shell
 sudo bpftrace -e 'tracepoint:raw_syscalls:sys_enter { @SYSCALLNUM[comm] = count(); }' &
-docker run -ti --rm --privileged -p 8080:8080 ghcr.io/ebpfdev/dev-agent:v0.0.2 server --etm -:AT_SYSCALLNUM:string
+docker run -ti --rm --cap-add CAP_BPF --cap-add CAP_SYS_ADMIN --pid=host -p 8080:8080 ghcr.io/ebpfdev/dev-agent:v0.0.3 server --etm -:AT_SYSCALLNUM:string
 curl http://localhost:8080/metrics | grep devagent_ebpf_map_entry_count
 ```
 
@@ -113,7 +113,7 @@ ID      Name    FD      Type    Flags   IsPinned        KeySize ValueSize       
 Instead of `./phydev server`, use docker command:
 
 ```shell
-docker run -ti --rm --privileged -p 8080:8080 ghcr.io/ebpfdev/dev-agent:v0.0.2 server
+docker run -ti --rm --cap-add CAP_BPF --cap-add CAP_SYS_ADMIN --pid=host -p 8080:8080 ghcr.io/ebpfdev/dev-agent:v0.0.3 server
 ```
 
 # Development

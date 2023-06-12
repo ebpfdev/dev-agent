@@ -7,6 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -21,6 +22,7 @@ type mapsWatcher struct {
 	mapEntriesCount *prometheus.GaugeVec
 	mapEntryValues  *prometheus.GaugeVec
 	exportConfigs   []*MapExportConfiguration
+	bpfDir          string
 }
 
 type MapsWatcher interface {
@@ -29,13 +31,15 @@ type MapsWatcher interface {
 	GetMap(id ebpf.MapID) (*MapInfo, error)
 	RegisterMetrics(registry *prometheus.Registry)
 	AddExportConfig(config *MapExportConfiguration)
+	PinMap(id ebpf.MapID, path string) error
+	UpdateMapValue(id ebpf.MapID, key string, cpu *int, value string, keyFormat DisplayFormat, mapsFormat DisplayFormat) error
 }
 
 type WatcherOpts struct {
 	RefreshInterval time.Duration
 }
 
-func NewWatcher(logger zerolog.Logger) MapsWatcher {
+func NewWatcher(logger zerolog.Logger, bpfDir string) MapsWatcher {
 	mapsCount := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "devagent",
 		Subsystem: "ebpf",
@@ -60,6 +64,7 @@ func NewWatcher(logger zerolog.Logger) MapsWatcher {
 		mapsCount:       mapsCount,
 		mapEntriesCount: mapEntriesCount,
 		mapEntryValues:  mapEntryValues,
+		bpfDir:          bpfDir,
 	}
 }
 
@@ -108,7 +113,7 @@ type MapInfo struct {
 	Name       string
 	Type       ebpf.MapType
 	Flags      uint32
-	IsPinned   bool
+	Pins       []string
 	KeySize    uint32
 	ValueSize  uint32
 	MaxEntries uint32
@@ -134,11 +139,78 @@ func (pw *mapsWatcher) GetMap(id ebpf.MapID) (*MapInfo, error) {
 	return nil, errors.New("map not found")
 }
 
+func (pw *mapsWatcher) PinMap(id ebpf.MapID, path string) error {
+	emap, err := ebpf.NewMapFromID(id)
+	if err != nil {
+		return err
+	}
+	return emap.Pin(path)
+}
+
+func (pw *mapsWatcher) UpdateMapValue(id ebpf.MapID, key string, cpu *int, value string, keyFormat DisplayFormat, mapsFormat DisplayFormat) error {
+	emap, err := ebpf.NewMapFromID(id)
+	if err != nil {
+		return err
+	}
+	keyBytes, err := RestoreBytes(keyFormat, key, emap.KeySize())
+	if err != nil {
+		return err
+	}
+	valueBytes, err := RestoreBytes(mapsFormat, value, emap.ValueSize())
+	if err != nil {
+		return err
+	}
+	if cpu == nil {
+		return emap.Update(keyBytes, valueBytes, ebpf.UpdateAny)
+	} else {
+		var currentValue [][]byte
+		err = emap.Lookup(keyBytes, &currentValue)
+		if err != nil {
+			return err
+		}
+		if len(currentValue) <= *cpu {
+			return errors.New("cpu index out of range")
+		}
+		currentValue[*cpu] = valueBytes
+		return emap.Update(keyBytes, currentValue, ebpf.UpdateAny)
+	}
+}
+
+func getPins(bpfDir string) map[ebpf.MapID][]string {
+	result := make(map[ebpf.MapID][]string)
+	_ = filepath.Walk(bpfDir, func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
+		pinnedMap, err := ebpf.LoadPinnedMap(path, &ebpf.LoadPinOptions{
+			ReadOnly: true,
+		})
+		defer pinnedMap.Close()
+		if err != nil {
+			return nil
+		}
+		mapInfo, err := pinnedMap.Info()
+		if err != nil {
+			return nil
+		}
+		id, ok := mapInfo.ID()
+		if !ok {
+			return nil
+		}
+		result[id] = append(result[id], path)
+		return nil
+	})
+	return result
+}
+
 func (pw *mapsWatcher) fetchMaps() ([]*MapInfo, error) {
 	var currID ebpf.MapID = 0
 	var err error
 	var maps []*MapInfo
 	pw.log.Debug().Msg("fetching maps")
+
+	// maps pinned by path
+	pinnedMaps := getPins(pw.bpfDir)
 
 	// maps count by type
 	mapsCount := make(map[ebpf.MapType]int)
@@ -162,6 +234,7 @@ func (pw *mapsWatcher) fetchMaps() ([]*MapInfo, error) {
 			maps = append(maps, mapInfoErr(currID, err2))
 			continue
 		}
+		defer emap.Close()
 
 		mapsCount[emap.Type()]++
 
@@ -176,12 +249,11 @@ func (pw *mapsWatcher) fetchMaps() ([]*MapInfo, error) {
 			Name:       name,
 			Type:       emap.Type(),
 			Flags:      emap.Flags(),
-			IsPinned:   emap.IsPinned(),
+			Pins:       pinnedMaps[currID],
 			KeySize:    emap.KeySize(),
 			ValueSize:  emap.ValueSize(),
 			MaxEntries: emap.MaxEntries(),
 		})
-		_ = emap.Close()
 
 		for _, config := range pw.exportConfigs {
 			if config.MatchMap(currID, name) {

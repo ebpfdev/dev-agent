@@ -12,18 +12,21 @@ import (
 func App() *cli.App {
 	logger := log.Logger.Level(zerolog.InfoLevel)
 	progsRepo := progs.NewWatcher(logger)
-	mapsRepo := maps.NewWatcher(logger)
 	tasksRepo := tasks.NewTaskWatcher()
 	progsCommands := &ProgsCommands{
 		ProgsRepo: progsRepo,
 	}
-	mapsCommands := &MapsCommands{
-		MapsRepo: mapsRepo,
+	mapsCommands := func(bpfDir string) *MapsCommands {
+		return &MapsCommands{
+			MapsRepo: maps.NewWatcher(logger, bpfDir),
+		}
 	}
-	serverCommands := &ServerCommands{
-		ProgsRepo: progsRepo,
-		MapsRepo:  mapsRepo,
-		TasksRepo: tasksRepo,
+	serverCommands := func(bpfDir string) *ServerCommands {
+		return &ServerCommands{
+			ProgsRepo: progsRepo,
+			MapsRepo:  maps.NewWatcher(logger, bpfDir),
+			TasksRepo: tasksRepo,
+		}
 	}
 
 	return &cli.App{
@@ -41,14 +44,22 @@ func App() *cli.App {
 				Name: "server",
 				Flags: []cli.Flag{
 					&cli.StringFlag{
+						Name:     "bpf_dir",
+						Category: "eBPF",
+						Usage:    "path to the bpf filesystem, usually /sys/fs/bpf",
+						Value:    "/sys/fs/bpf",
+						EnvVars:  []string{"BPF_DIR"},
+					},
+					&cli.StringFlag{
 						Name:     "path-prefix",
-						Category: "Server",
+						Category: "Web server",
 						Usage:    "path prefix for the web ui to access the server",
 						Value:    "/",
 					},
 					&cli.BoolFlag{
-						Name:  "skip-welcome",
-						Usage: "skip welcome message",
+						Name:     "skip-welcome",
+						Category: "Web server",
+						Usage:    "skip welcome message",
 					},
 					&cli.MultiStringFlag{
 						Target: &cli.StringSliceFlag{
@@ -65,15 +76,17 @@ func App() *cli.App {
 					},
 				},
 				Action: func(c *cli.Context) error {
+					commands := serverCommands(c.String("bpf_dir"))
+
 					for _, etm := range c.StringSlice("entries-to-metrics") {
 						etmConfig, err := maps.ParseMapExportConfiguration(etm)
 						if err != nil {
 							return err
 						}
-						mapsRepo.AddExportConfig(etmConfig)
+						commands.MapsRepo.AddExportConfig(etmConfig)
 					}
 
-					return serverCommands.ServerStart(&ServerStartOptions{
+					return commands.ServerStart(&ServerStartOptions{
 						PathPrefix:  c.String("path-prefix"),
 						SkipWelcome: c.Bool("skip-welcome"),
 					})
@@ -95,11 +108,19 @@ func App() *cli.App {
 					},
 					{
 						Name: "maps",
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "bpf_dir",
+								Category: "Server",
+								Usage:    "path to the bpf filesystem, usually /sys/fs/bpf",
+								Value:    "/sys/fs/bpf",
+							},
+						},
 						Subcommands: []*cli.Command{
 							{
 								Name: "list",
 								Action: func(c *cli.Context) error {
-									return mapsCommands.MapsList()
+									return mapsCommands(c.String("bpf_dir")).MapsList()
 								},
 							},
 						},

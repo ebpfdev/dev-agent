@@ -1,3 +1,11 @@
+main // TBD
+--
+
+* map pinning
+  * graphql mutation method to pin a map
+  * pins list for a map
+* GraphQL mutation method to edit Array/Hash (+perCPU) map entries
+
 v0.0.3 // 11 june 2023 / more connections
 --
 

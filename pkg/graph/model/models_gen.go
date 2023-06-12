@@ -19,7 +19,8 @@ type Map struct {
 	Name              *string     `json:"name,omitempty"`
 	Type              string      `json:"type"`
 	Flags             *int        `json:"flags,omitempty"`
-	IsPinned          *bool       `json:"isPinned,omitempty"`
+	IsPinned          bool        `json:"isPinned"`
+	Pins              []string    `json:"pins,omitempty"`
 	KeySize           *int        `json:"keySize,omitempty"`
 	ValueSize         *int        `json:"valueSize,omitempty"`
 	MaxEntries        *int        `json:"maxEntries,omitempty"`
@@ -34,6 +35,14 @@ type MapEntry struct {
 	Key       string   `json:"key"`
 	Value     *string  `json:"value,omitempty"`
 	CPUValues []string `json:"cpuValues"`
+}
+
+type MapPinningResult struct {
+	Error *string `json:"error,omitempty"`
+}
+
+type MapUpdateValueResult struct {
+	Error *string `json:"error,omitempty"`
 }
 
 type Program struct {

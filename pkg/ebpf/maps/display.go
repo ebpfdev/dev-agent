@@ -62,7 +62,7 @@ func RestoreBytes(format DisplayFormat, value string, expectedSize uint32) ([]by
 			return nil, fmt.Errorf("hex data is too long (%d bytes vs %d expected)", len(value)/2, expectedSize)
 		}
 		result := make([]byte, expectedSize)
-		_, err := hex.Decode(result, []byte(value)[:expectedSize*2])
+		_, err := hex.Decode(result, []byte(value))
 		if err != nil {
 			return nil, err
 		}

@@ -64,7 +64,8 @@ func mapInfoToModel(m *maps.MapInfo) *model.Map {
 		Name:              &m.Name,
 		Type:              m.Type.String(),
 		Flags:             &flags,
-		IsPinned:          &m.IsPinned,
+		IsPinned:          len(m.Pins) > 0,
+		Pins:              m.Pins,
 		KeySize:           &keySize,
 		ValueSize:         &valueSize,
 		MaxEntries:        &maxEntries,
@@ -83,6 +84,19 @@ func formatValue(format model.MapEntryFormat, value []byte) string {
 		return maps.FormatBytes(maps.DisplayFormatNumber, value)
 	default:
 		return maps.FormatBytes(maps.DisplayFormatHex, value)
+	}
+}
+
+func toMapsFormat(format model.MapEntryFormat) maps.DisplayFormat {
+	switch format {
+	case model.MapEntryFormatString:
+		return maps.DisplayFormatString
+	case model.MapEntryFormatHex:
+		return maps.DisplayFormatHex
+	case model.MapEntryFormatNumber:
+		return maps.DisplayFormatNumber
+	default:
+		return maps.DisplayFormatHex
 	}
 }
 

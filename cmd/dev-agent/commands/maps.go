@@ -26,7 +26,7 @@ func (mc *MapsCommands) MapsList() error {
 			emap.Name,
 			emap.Type,
 			emap.Flags,
-			emap.IsPinned,
+			len(emap.Pins) > 0,
 			emap.KeySize,
 			emap.ValueSize,
 			emap.MaxEntries,

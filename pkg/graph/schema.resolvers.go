@@ -87,6 +87,26 @@ func (r *mapResolver) Programs(ctx context.Context, obj *model.Map) ([]*model.Pr
 	return result, nil
 }
 
+// PinMap is the resolver for the pinMap field.
+func (r *mutationResolver) PinMap(ctx context.Context, id int, path string) (*model.MapPinningResult, error) {
+	err := r.MapsRepository.PinMap(ebpf.MapID(id), path)
+	if err != nil {
+		errMsg := err.Error()
+		return &model.MapPinningResult{Error: &errMsg}, nil
+	}
+	return &model.MapPinningResult{}, nil
+}
+
+// UpdateMapValue is the resolver for the updateMapValue field.
+func (r *mutationResolver) UpdateMapValue(ctx context.Context, mapID int, key string, cpu *int, value string, keyFormat model.MapEntryFormat, valueFormat model.MapEntryFormat) (*model.MapUpdateValueResult, error) {
+	err := r.MapsRepository.UpdateMapValue(ebpf.MapID(mapID), key, cpu, value, toMapsFormat(keyFormat), toMapsFormat(valueFormat))
+	if err != nil {
+		errMsg := err.Error()
+		return &model.MapUpdateValueResult{Error: &errMsg}, nil
+	}
+	return &model.MapUpdateValueResult{}, nil
+}
+
 // Maps is the resolver for the maps field.
 func (r *programResolver) Maps(ctx context.Context, obj *model.Program) ([]*model.Map, error) {
 	emaps, err := r.MapsRepository.GetMaps()
@@ -184,6 +204,9 @@ func (r *queryResolver) ConnectedGraph(ctx context.Context, from int, fromType m
 // Map returns generated.MapResolver implementation.
 func (r *Resolver) Map() generated.MapResolver { return &mapResolver{r} }
 
+// Mutation returns generated.MutationResolver implementation.
+func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
+
 // Program returns generated.ProgramResolver implementation.
 func (r *Resolver) Program() generated.ProgramResolver { return &programResolver{r} }
 
@@ -191,5 +214,6 @@ func (r *Resolver) Program() generated.ProgramResolver { return &programResolver
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
 type mapResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
 type programResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }

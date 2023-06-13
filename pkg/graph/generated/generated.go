@@ -37,6 +37,7 @@ type Config struct {
 
 type ResolverRoot interface {
 	Map() MapResolver
+	Mutation() MutationResolver
 	Program() ProgramResolver
 	Query() QueryResolver
 }
@@ -62,6 +63,7 @@ type ComplexityRoot struct {
 		KeySize           func(childComplexity int) int
 		MaxEntries        func(childComplexity int) int
 		Name              func(childComplexity int) int
+		Pins              func(childComplexity int) int
 		Programs          func(childComplexity int) int
 		Type              func(childComplexity int) int
 		ValueSize         func(childComplexity int) int
@@ -71,6 +73,19 @@ type ComplexityRoot struct {
 		CPUValues func(childComplexity int) int
 		Key       func(childComplexity int) int
 		Value     func(childComplexity int) int
+	}
+
+	MapPinningResult struct {
+		Error func(childComplexity int) int
+	}
+
+	MapUpdateValueResult struct {
+		Error func(childComplexity int) int
+	}
+
+	Mutation struct {
+		PinMap         func(childComplexity int, id int, path string) int
+		UpdateMapValue func(childComplexity int, mapID int, key string, cpu *int, value string, keyFormat model.MapEntryFormat, valueFormat model.MapEntryFormat) int
 	}
 
 	Program struct {
@@ -110,6 +125,10 @@ type MapResolver interface {
 	Entries(ctx context.Context, obj *model.Map, offset *int, limit *int, keyFormat *model.MapEntryFormat, valueFormat *model.MapEntryFormat) ([]*model.MapEntry, error)
 	EntriesCount(ctx context.Context, obj *model.Map) (int, error)
 	Programs(ctx context.Context, obj *model.Map) ([]*model.Program, error)
+}
+type MutationResolver interface {
+	PinMap(ctx context.Context, id int, path string) (*model.MapPinningResult, error)
+	UpdateMapValue(ctx context.Context, mapID int, key string, cpu *int, value string, keyFormat model.MapEntryFormat, valueFormat model.MapEntryFormat) (*model.MapUpdateValueResult, error)
 }
 type ProgramResolver interface {
 	Maps(ctx context.Context, obj *model.Program) ([]*model.Map, error)
@@ -234,6 +253,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Map.Name(childComplexity), true
 
+	case "Map.pins":
+		if e.complexity.Map.Pins == nil {
+			break
+		}
+
+		return e.complexity.Map.Pins(childComplexity), true
+
 	case "Map.programs":
 		if e.complexity.Map.Programs == nil {
 			break
@@ -275,6 +301,44 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.MapEntry.Value(childComplexity), true
+
+	case "MapPinningResult.error":
+		if e.complexity.MapPinningResult.Error == nil {
+			break
+		}
+
+		return e.complexity.MapPinningResult.Error(childComplexity), true
+
+	case "MapUpdateValueResult.error":
+		if e.complexity.MapUpdateValueResult.Error == nil {
+			break
+		}
+
+		return e.complexity.MapUpdateValueResult.Error(childComplexity), true
+
+	case "Mutation.pinMap":
+		if e.complexity.Mutation.PinMap == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_pinMap_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.PinMap(childComplexity, args["id"].(int), args["path"].(string)), true
+
+	case "Mutation.updateMapValue":
+		if e.complexity.Mutation.UpdateMapValue == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateMapValue_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateMapValue(childComplexity, args["mapId"].(int), args["key"].(string), args["cpu"].(*int), args["value"].(string), args["keyFormat"].(model.MapEntryFormat), args["valueFormat"].(model.MapEntryFormat)), true
 
 	case "Program.btfId":
 		if e.complexity.Program.BtfID == nil {
@@ -478,6 +542,21 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 				Data: buf.Bytes(),
 			}
 		}
+	case ast.Mutation:
+		return func(ctx context.Context) *graphql.Response {
+			if !first {
+				return nil
+			}
+			first = false
+			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
+			data := ec._Mutation(ctx, rc.Operation.SelectionSet)
+			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
 
 	default:
 		return graphql.OneShot(graphql.ErrorResponse(ctx, "unsupported GraphQL operation"))
@@ -546,7 +625,8 @@ type Map {
     name: String
     type: String!
     flags: Int
-    isPinned: Boolean
+    isPinned: Boolean!
+    pins: [String!]
     keySize: Int
     valueSize: Int
     maxEntries: Int
@@ -592,6 +672,26 @@ type Query {
     map(id: Int!): Map!
     maps: [Map!]!
     connectedGraph(from: Int!, fromType: IdType!): ConnectedGraph!
+}
+
+type MapPinningResult {
+    error: String
+}
+
+type MapUpdateValueResult {
+    error: String
+}
+
+type Mutation {
+    pinMap(id: Int!, path: String!): MapPinningResult
+    updateMapValue(
+        mapId: Int!,
+        key: String!,
+        cpu: Int,
+        value: String!,
+        keyFormat: MapEntryFormat!,
+        valueFormat: MapEntryFormat!
+    ): MapUpdateValueResult
 }
 `, BuiltIn: false},
 }
@@ -640,6 +740,90 @@ func (ec *executionContext) field_Map_entries_args(ctx context.Context, rawArgs 
 		}
 	}
 	args["valueFormat"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_pinMap_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	var arg1 string
+	if tmp, ok := rawArgs["path"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("path"))
+		arg1, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["path"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateMapValue_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["mapId"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mapId"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["mapId"] = arg0
+	var arg1 string
+	if tmp, ok := rawArgs["key"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
+		arg1, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["key"] = arg1
+	var arg2 *int
+	if tmp, ok := rawArgs["cpu"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("cpu"))
+		arg2, err = ec.unmarshalOInt2ᚖint(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["cpu"] = arg2
+	var arg3 string
+	if tmp, ok := rawArgs["value"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("value"))
+		arg3, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["value"] = arg3
+	var arg4 model.MapEntryFormat
+	if tmp, ok := rawArgs["keyFormat"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("keyFormat"))
+		arg4, err = ec.unmarshalNMapEntryFormat2githubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntryFormat(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["keyFormat"] = arg4
+	var arg5 model.MapEntryFormat
+	if tmp, ok := rawArgs["valueFormat"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("valueFormat"))
+		arg5, err = ec.unmarshalNMapEntryFormat2githubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntryFormat(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["valueFormat"] = arg5
 	return args, nil
 }
 
@@ -871,6 +1055,8 @@ func (ec *executionContext) fieldContext_ConnectedGraph_maps(ctx context.Context
 				return ec.fieldContext_Map_flags(ctx, field)
 			case "isPinned":
 				return ec.fieldContext_Map_isPinned(ctx, field)
+			case "pins":
+				return ec.fieldContext_Map_pins(ctx, field)
 			case "keySize":
 				return ec.fieldContext_Map_keySize(ctx, field)
 			case "valueSize":
@@ -1126,11 +1312,14 @@ func (ec *executionContext) _Map_isPinned(ctx context.Context, field graphql.Col
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
-	res := resTmp.(*bool)
+	res := resTmp.(bool)
 	fc.Result = res
-	return ec.marshalOBoolean2ᚖbool(ctx, field.Selections, res)
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Map_isPinned(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1141,6 +1330,47 @@ func (ec *executionContext) fieldContext_Map_isPinned(ctx context.Context, field
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Map_pins(ctx context.Context, field graphql.CollectedField, obj *model.Map) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Map_pins(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Pins, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalOString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Map_pins(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Map",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -1663,6 +1893,200 @@ func (ec *executionContext) fieldContext_MapEntry_cpuValues(ctx context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _MapPinningResult_error(ctx context.Context, field graphql.CollectedField, obj *model.MapPinningResult) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MapPinningResult_error(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Error, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_MapPinningResult_error(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapPinningResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MapUpdateValueResult_error(ctx context.Context, field graphql.CollectedField, obj *model.MapUpdateValueResult) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MapUpdateValueResult_error(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Error, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_MapUpdateValueResult_error(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MapUpdateValueResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_pinMap(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_pinMap(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().PinMap(rctx, fc.Args["id"].(int), fc.Args["path"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.MapPinningResult)
+	fc.Result = res
+	return ec.marshalOMapPinningResult2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapPinningResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_pinMap(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "error":
+				return ec.fieldContext_MapPinningResult_error(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MapPinningResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_pinMap_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateMapValue(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_updateMapValue(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().UpdateMapValue(rctx, fc.Args["mapId"].(int), fc.Args["key"].(string), fc.Args["cpu"].(*int), fc.Args["value"].(string), fc.Args["keyFormat"].(model.MapEntryFormat), fc.Args["valueFormat"].(model.MapEntryFormat))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.MapUpdateValueResult)
+	fc.Result = res
+	return ec.marshalOMapUpdateValueResult2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapUpdateValueResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateMapValue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "error":
+				return ec.fieldContext_MapUpdateValueResult_error(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MapUpdateValueResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateMapValue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Program_id(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Program_id(ctx, field)
 	if err != nil {
@@ -2130,6 +2554,8 @@ func (ec *executionContext) fieldContext_Program_maps(ctx context.Context, field
 				return ec.fieldContext_Map_flags(ctx, field)
 			case "isPinned":
 				return ec.fieldContext_Map_isPinned(ctx, field)
+			case "pins":
+				return ec.fieldContext_Map_pins(ctx, field)
 			case "keySize":
 				return ec.fieldContext_Map_keySize(ctx, field)
 			case "valueSize":
@@ -2413,6 +2839,8 @@ func (ec *executionContext) fieldContext_Query_map(ctx context.Context, field gr
 				return ec.fieldContext_Map_flags(ctx, field)
 			case "isPinned":
 				return ec.fieldContext_Map_isPinned(ctx, field)
+			case "pins":
+				return ec.fieldContext_Map_pins(ctx, field)
 			case "keySize":
 				return ec.fieldContext_Map_keySize(ctx, field)
 			case "valueSize":
@@ -2498,6 +2926,8 @@ func (ec *executionContext) fieldContext_Query_maps(ctx context.Context, field g
 				return ec.fieldContext_Map_flags(ctx, field)
 			case "isPinned":
 				return ec.fieldContext_Map_isPinned(ctx, field)
+			case "pins":
+				return ec.fieldContext_Map_pins(ctx, field)
 			case "keySize":
 				return ec.fieldContext_Map_keySize(ctx, field)
 			case "valueSize":
@@ -4822,6 +5252,13 @@ func (ec *executionContext) _Map(ctx context.Context, sel ast.SelectionSet, obj 
 
 			out.Values[i] = ec._Map_isPinned(ctx, field, obj)
 
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "pins":
+
+			out.Values[i] = ec._Map_pins(ctx, field, obj)
+
 		case "keySize":
 
 			out.Values[i] = ec._Map_keySize(ctx, field, obj)
@@ -4947,6 +5384,98 @@ func (ec *executionContext) _MapEntry(ctx context.Context, sel ast.SelectionSet,
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var mapPinningResultImplementors = []string{"MapPinningResult"}
+
+func (ec *executionContext) _MapPinningResult(ctx context.Context, sel ast.SelectionSet, obj *model.MapPinningResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mapPinningResultImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MapPinningResult")
+		case "error":
+
+			out.Values[i] = ec._MapPinningResult_error(ctx, field, obj)
+
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var mapUpdateValueResultImplementors = []string{"MapUpdateValueResult"}
+
+func (ec *executionContext) _MapUpdateValueResult(ctx context.Context, sel ast.SelectionSet, obj *model.MapUpdateValueResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mapUpdateValueResultImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MapUpdateValueResult")
+		case "error":
+
+			out.Values[i] = ec._MapUpdateValueResult_error(ctx, field, obj)
+
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var mutationImplementors = []string{"Mutation"}
+
+func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mutationImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Mutation",
+	})
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		innerCtx := graphql.WithRootFieldContext(ctx, &graphql.RootFieldContext{
+			Object: field.Name,
+			Field:  field,
+		})
+
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Mutation")
+		case "pinMap":
+
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_pinMap(ctx, field)
+			})
+
+		case "updateMapValue":
+
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateMapValue(ctx, field)
+			})
+
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5760,6 +6289,16 @@ func (ec *executionContext) marshalNMapEntry2ᚖgithubᚗcomᚋebpfdevᚋdevᚑa
 	return ec._MapEntry(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNMapEntryFormat2githubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntryFormat(ctx context.Context, v interface{}) (model.MapEntryFormat, error) {
+	var res model.MapEntryFormat
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMapEntryFormat2githubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntryFormat(ctx context.Context, sel ast.SelectionSet, v model.MapEntryFormat) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNProgram2githubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐProgram(ctx context.Context, sel ast.SelectionSet, v model.Program) graphql.Marshaler {
 	return ec._Program(ctx, sel, &v)
 }
@@ -6244,6 +6783,58 @@ func (ec *executionContext) marshalOMapEntryFormat2ᚖgithubᚗcomᚋebpfdevᚋd
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) marshalOMapPinningResult2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapPinningResult(ctx context.Context, sel ast.SelectionSet, v *model.MapPinningResult) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._MapPinningResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOMapUpdateValueResult2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapUpdateValueResult(ctx context.Context, sel ast.SelectionSet, v *model.MapUpdateValueResult) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._MapUpdateValueResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v interface{}) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []interface{}
+	if v != nil {
+		vSlice = graphql.CoerceList(v)
+	}
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v interface{}) (*string, error) {

@@ -72,7 +72,7 @@ This is how it may look in Grafana (top 10 processes doing most of syscalls):
 Full demo in terminal:
 ```shell
 sudo bpftrace -e 'tracepoint:raw_syscalls:sys_enter { @SYSCALLNUM[comm] = count(); }' &
-docker run -ti --rm --cap-add CAP_BPF --cap-add CAP_SYS_ADMIN --pid=host -p 8080:8080 ghcr.io/ebpfdev/dev-agent:v0.0.3 server --etm -:AT_SYSCALLNUM:string
+docker run -ti --rm --cap-add CAP_SYS_ADMIN --pid=host -v /sys/fs/bpf:/sys/fs/bpf --pid=host -p 8080:8080 ghcr.io/ebpfdev/dev-agent:v0.0.3 server --etm -:AT_SYSCALLNUM:string
 curl http://localhost:8080/metrics | grep devagent_ebpf_map_entry_count
 ```
 
@@ -113,8 +113,24 @@ ID      Name    FD      Type    Flags   IsPinned        KeySize ValueSize       
 Instead of `./phydev server`, use docker command:
 
 ```shell
-docker run -ti --rm --cap-add CAP_BPF --cap-add CAP_SYS_ADMIN --pid=host -p 8080:8080 ghcr.io/ebpfdev/dev-agent:v0.0.3 server
+docker run -ti --rm --cap-add CAP_SYS_ADMIN --pid=host -e BPF_DIR=/sys/fs/bpf -v /sys/fs/bpf:/sys/fs/bpf -p 8080:8080 ghcr.io/ebpfdev/dev-agent:v0.0.3 server
 ```
+
+### Security options breakdown
+
+Required:
+* `--cap-add CAP_SYS_ADMIN` is needed for access BPF maps and programs (CAP_BPF is not yet enough to list existing maps and programs)
+
+Optional:
+* `--pid=host` is needed to determine tracepoint/kprobe attachment,
+  if you skip it, you won't see what tracepoint/kprobe a program is attached to:
+  ![](docs/secopts-attachments.png)
+  
+* `-e BPF_DIR=/sys/fs/bpf -v /sys/fs/bpf:/sys/fs/bpf` is needed to determine pinned maps (they will be resolved relative to `BPF_DIR` tough, so it's better to mount it to the same path)
+  if you skip it, you won't see maps pinned path, and it won't be possible to pin new maps:
+  ![](docs/secopts-pins.png)
+
+
 
 # Development
 

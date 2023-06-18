@@ -1,4 +1,4 @@
-next // 18 june 2023 / add and delete map entries
+v0.0.5 // 18 june 2023 / add and delete map entries
 --
 
 * GraphQL mutation methods to add and delete map entries

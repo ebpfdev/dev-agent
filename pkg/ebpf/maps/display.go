@@ -69,17 +69,30 @@ func RestoreBytes(format DisplayFormat, value string, expectedSize uint32) ([]by
 		return result, nil
 	case DisplayFormatNumber:
 		result := make([]byte, expectedSize)
+		if value == "" {
+			return result, nil
+		}
 		number, err := strconv.Atoi(value)
 		if err != nil {
 			return nil, err
 		}
+		unumber := uint64(number)
 		if expectedSize == 8 {
-			util.GetEndian().PutUint64(result, uint64(number))
+			util.GetEndian().PutUint64(result, unumber)
 		} else if expectedSize == 4 {
+			if unumber > 0xffffffff {
+				return nil, fmt.Errorf("number is too big for 4 bytes")
+			}
 			util.GetEndian().PutUint32(result, uint32(number))
 		} else if expectedSize == 2 {
+			if unumber > 0xffff {
+				return nil, fmt.Errorf("number is too big for 2 bytes")
+			}
 			util.GetEndian().PutUint16(result, uint16(number))
 		} else if expectedSize == 1 {
+			if number > 0xff {
+				return nil, fmt.Errorf("number is too big for 1 byte")
+			}
 			result[0] = byte(number)
 		} else {
 			return nil, fmt.Errorf("unsupported number size %d (only 1, 2, 4 and 8 are supported)", expectedSize)

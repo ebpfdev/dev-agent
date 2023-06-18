@@ -98,7 +98,9 @@ type MapUpdateValueResult {
 }
 
 type Mutation {
+
     pinMap(id: Int!, path: String!): MapPinningResult
+
     updateMapValue(
         mapId: Int!,
         key: String!,
@@ -106,5 +108,19 @@ type Mutation {
         value: String!,
         keyFormat: MapEntryFormat!,
         valueFormat: MapEntryFormat!
+    ): MapUpdateValueResult
+
+    createMapValue(
+        mapId: Int!,
+        key: String!,
+        values: [String!]!,
+        keyFormat: MapEntryFormat!,
+        valueFormat: MapEntryFormat!
+    ): MapUpdateValueResult
+
+    deleteMapValues(
+        mapId: Int!,
+        keys: [String!]!,
+        keyFormat: MapEntryFormat!
     ): MapUpdateValueResult
 }

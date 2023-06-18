@@ -107,6 +107,28 @@ func (r *mutationResolver) UpdateMapValue(ctx context.Context, mapID int, key st
 	return &model.MapUpdateValueResult{}, nil
 }
 
+// CreateMapValue is the resolver for the createMapValue field.
+func (r *mutationResolver) CreateMapValue(ctx context.Context, mapID int, key string, values []string, keyFormat model.MapEntryFormat, valueFormat model.MapEntryFormat) (*model.MapUpdateValueResult, error) {
+	err := r.MapsRepository.CreateMapValue(ebpf.MapID(mapID), key, values, toMapsFormat(keyFormat), toMapsFormat(valueFormat))
+	if err != nil {
+		errMsg := err.Error()
+		return &model.MapUpdateValueResult{Error: &errMsg}, nil
+	}
+	return &model.MapUpdateValueResult{}, nil
+}
+
+// DeleteMapValues is the resolver for the deleteMapValues field.
+func (r *mutationResolver) DeleteMapValues(ctx context.Context, mapID int, keys []string, keyFormat model.MapEntryFormat) (*model.MapUpdateValueResult, error) {
+	for _, key := range keys {
+		err := r.MapsRepository.DeleteMapValue(ebpf.MapID(mapID), key, toMapsFormat(keyFormat))
+		if err != nil {
+			errMsg := err.Error()
+			return &model.MapUpdateValueResult{Error: &errMsg}, nil
+		}
+	}
+	return &model.MapUpdateValueResult{}, nil
+}
+
 // Maps is the resolver for the maps field.
 func (r *programResolver) Maps(ctx context.Context, obj *model.Program) ([]*model.Map, error) {
 	emaps, err := r.MapsRepository.GetMaps()

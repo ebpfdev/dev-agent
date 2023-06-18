@@ -1,3 +1,9 @@
+next // 18 june 2023 / add and delete map entries
+--
+
+* GraphQL mutation methods to add and delete map entries
+* (bugfix) check number length on map entry modification
+
 v0.0.4 // 13 june 2023 / map editing and pinning
 --
 

@@ -33,6 +33,8 @@ type MapsWatcher interface {
 	AddExportConfig(config *MapExportConfiguration)
 	PinMap(id ebpf.MapID, path string) error
 	UpdateMapValue(id ebpf.MapID, key string, cpu *int, value string, keyFormat DisplayFormat, mapsFormat DisplayFormat) error
+	CreateMapValue(id ebpf.MapID, key string, values []string, keyFormat DisplayFormat, mapsFormat DisplayFormat) error
+	DeleteMapValue(id ebpf.MapID, key string, keyFormat DisplayFormat) error
 }
 
 type WatcherOpts struct {
@@ -147,6 +149,34 @@ func (pw *mapsWatcher) PinMap(id ebpf.MapID, path string) error {
 	return emap.Pin(path)
 }
 
+func (pw *mapsWatcher) CreateMapValue(id ebpf.MapID, key string, values []string, keyFormat DisplayFormat, mapsFormat DisplayFormat) error {
+	emap, err := ebpf.NewMapFromID(id)
+	if err != nil {
+		return err
+	}
+	if !IsPerCPU(emap.Type()) && len(values) != 1 {
+		return errors.New("map is not percpu, but multiple values were provided")
+	}
+
+	keyBytes, err := RestoreBytes(keyFormat, key, emap.KeySize())
+	if err != nil {
+		return err
+	}
+	valueBytesSlice := make([][]byte, len(values))
+	for i, value := range values {
+		valueBytes, err := RestoreBytes(mapsFormat, value, emap.ValueSize())
+		if err != nil {
+			return err
+		}
+		valueBytesSlice[i] = valueBytes
+	}
+	if IsPerCPU(emap.Type()) {
+		return emap.Update(keyBytes, valueBytesSlice, ebpf.UpdateNoExist)
+	} else {
+		return emap.Update(keyBytes, valueBytesSlice[0], ebpf.UpdateNoExist)
+	}
+}
+
 func (pw *mapsWatcher) UpdateMapValue(id ebpf.MapID, key string, cpu *int, value string, keyFormat DisplayFormat, mapsFormat DisplayFormat) error {
 	emap, err := ebpf.NewMapFromID(id)
 	if err != nil {
@@ -159,6 +189,9 @@ func (pw *mapsWatcher) UpdateMapValue(id ebpf.MapID, key string, cpu *int, value
 	valueBytes, err := RestoreBytes(mapsFormat, value, emap.ValueSize())
 	if err != nil {
 		return err
+	}
+	if IsPerCPU(emap.Type()) && cpu == nil {
+		return errors.New("cpu index is required for percpu maps")
 	}
 	if cpu == nil {
 		return emap.Update(keyBytes, valueBytes, ebpf.UpdateAny)
@@ -174,6 +207,18 @@ func (pw *mapsWatcher) UpdateMapValue(id ebpf.MapID, key string, cpu *int, value
 		currentValue[*cpu] = valueBytes
 		return emap.Update(keyBytes, currentValue, ebpf.UpdateAny)
 	}
+}
+
+func (pw *mapsWatcher) DeleteMapValue(id ebpf.MapID, key string, keyFormat DisplayFormat) error {
+	emap, err := ebpf.NewMapFromID(id)
+	if err != nil {
+		return err
+	}
+	keyBytes, err := RestoreBytes(keyFormat, key, emap.KeySize())
+	if err != nil {
+		return err
+	}
+	return emap.Delete(keyBytes)
 }
 
 func getPins(bpfDir string) map[ebpf.MapID][]string {

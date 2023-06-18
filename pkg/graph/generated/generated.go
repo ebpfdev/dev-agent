@@ -84,8 +84,10 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		PinMap         func(childComplexity int, id int, path string) int
-		UpdateMapValue func(childComplexity int, mapID int, key string, cpu *int, value string, keyFormat model.MapEntryFormat, valueFormat model.MapEntryFormat) int
+		CreateMapValue  func(childComplexity int, mapID int, key string, values []string, keyFormat model.MapEntryFormat, valueFormat model.MapEntryFormat) int
+		DeleteMapValues func(childComplexity int, mapID int, keys []string, keyFormat model.MapEntryFormat) int
+		PinMap          func(childComplexity int, id int, path string) int
+		UpdateMapValue  func(childComplexity int, mapID int, key string, cpu *int, value string, keyFormat model.MapEntryFormat, valueFormat model.MapEntryFormat) int
 	}
 
 	Program struct {
@@ -129,6 +131,8 @@ type MapResolver interface {
 type MutationResolver interface {
 	PinMap(ctx context.Context, id int, path string) (*model.MapPinningResult, error)
 	UpdateMapValue(ctx context.Context, mapID int, key string, cpu *int, value string, keyFormat model.MapEntryFormat, valueFormat model.MapEntryFormat) (*model.MapUpdateValueResult, error)
+	CreateMapValue(ctx context.Context, mapID int, key string, values []string, keyFormat model.MapEntryFormat, valueFormat model.MapEntryFormat) (*model.MapUpdateValueResult, error)
+	DeleteMapValues(ctx context.Context, mapID int, keys []string, keyFormat model.MapEntryFormat) (*model.MapUpdateValueResult, error)
 }
 type ProgramResolver interface {
 	Maps(ctx context.Context, obj *model.Program) ([]*model.Map, error)
@@ -315,6 +319,30 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.MapUpdateValueResult.Error(childComplexity), true
+
+	case "Mutation.createMapValue":
+		if e.complexity.Mutation.CreateMapValue == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createMapValue_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateMapValue(childComplexity, args["mapId"].(int), args["key"].(string), args["values"].([]string), args["keyFormat"].(model.MapEntryFormat), args["valueFormat"].(model.MapEntryFormat)), true
+
+	case "Mutation.deleteMapValues":
+		if e.complexity.Mutation.DeleteMapValues == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteMapValues_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteMapValues(childComplexity, args["mapId"].(int), args["keys"].([]string), args["keyFormat"].(model.MapEntryFormat)), true
 
 	case "Mutation.pinMap":
 		if e.complexity.Mutation.PinMap == nil {
@@ -683,7 +711,9 @@ type MapUpdateValueResult {
 }
 
 type Mutation {
+
     pinMap(id: Int!, path: String!): MapPinningResult
+
     updateMapValue(
         mapId: Int!,
         key: String!,
@@ -691,6 +721,20 @@ type Mutation {
         value: String!,
         keyFormat: MapEntryFormat!,
         valueFormat: MapEntryFormat!
+    ): MapUpdateValueResult
+
+    createMapValue(
+        mapId: Int!,
+        key: String!,
+        values: [String!]!,
+        keyFormat: MapEntryFormat!,
+        valueFormat: MapEntryFormat!
+    ): MapUpdateValueResult
+
+    deleteMapValues(
+        mapId: Int!,
+        keys: [String!]!,
+        keyFormat: MapEntryFormat!
     ): MapUpdateValueResult
 }
 `, BuiltIn: false},
@@ -740,6 +784,90 @@ func (ec *executionContext) field_Map_entries_args(ctx context.Context, rawArgs 
 		}
 	}
 	args["valueFormat"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createMapValue_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["mapId"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mapId"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["mapId"] = arg0
+	var arg1 string
+	if tmp, ok := rawArgs["key"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
+		arg1, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["key"] = arg1
+	var arg2 []string
+	if tmp, ok := rawArgs["values"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("values"))
+		arg2, err = ec.unmarshalNString2ᚕstringᚄ(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["values"] = arg2
+	var arg3 model.MapEntryFormat
+	if tmp, ok := rawArgs["keyFormat"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("keyFormat"))
+		arg3, err = ec.unmarshalNMapEntryFormat2githubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntryFormat(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["keyFormat"] = arg3
+	var arg4 model.MapEntryFormat
+	if tmp, ok := rawArgs["valueFormat"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("valueFormat"))
+		arg4, err = ec.unmarshalNMapEntryFormat2githubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntryFormat(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["valueFormat"] = arg4
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteMapValues_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["mapId"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mapId"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["mapId"] = arg0
+	var arg1 []string
+	if tmp, ok := rawArgs["keys"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("keys"))
+		arg1, err = ec.unmarshalNString2ᚕstringᚄ(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["keys"] = arg1
+	var arg2 model.MapEntryFormat
+	if tmp, ok := rawArgs["keyFormat"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("keyFormat"))
+		arg2, err = ec.unmarshalNMapEntryFormat2githubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapEntryFormat(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["keyFormat"] = arg2
 	return args, nil
 }
 
@@ -2081,6 +2209,118 @@ func (ec *executionContext) fieldContext_Mutation_updateMapValue(ctx context.Con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateMapValue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createMapValue(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_createMapValue(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CreateMapValue(rctx, fc.Args["mapId"].(int), fc.Args["key"].(string), fc.Args["values"].([]string), fc.Args["keyFormat"].(model.MapEntryFormat), fc.Args["valueFormat"].(model.MapEntryFormat))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.MapUpdateValueResult)
+	fc.Result = res
+	return ec.marshalOMapUpdateValueResult2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapUpdateValueResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createMapValue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "error":
+				return ec.fieldContext_MapUpdateValueResult_error(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MapUpdateValueResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createMapValue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteMapValues(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_deleteMapValues(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DeleteMapValues(rctx, fc.Args["mapId"].(int), fc.Args["keys"].([]string), fc.Args["keyFormat"].(model.MapEntryFormat))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.MapUpdateValueResult)
+	fc.Result = res
+	return ec.marshalOMapUpdateValueResult2ᚖgithubᚗcomᚋebpfdevᚋdevᚑagentᚋpkgᚋgraphᚋmodelᚐMapUpdateValueResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteMapValues(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "error":
+				return ec.fieldContext_MapUpdateValueResult_error(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MapUpdateValueResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteMapValues_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return
 	}
@@ -5474,6 +5714,18 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateMapValue(ctx, field)
+			})
+
+		case "createMapValue":
+
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createMapValue(ctx, field)
+			})
+
+		case "deleteMapValues":
+
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteMapValues(ctx, field)
 			})
 
 		default:
